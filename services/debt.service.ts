@@ -17,19 +17,28 @@ import { isOverdue, getDaysUntilDue } from '@/utils/date';
 export class DebtService {
   /**
    * Process Fuliza overdraft from SMS
+   * Links to the original transaction that triggered the overdraft (same refCode)
    */
   async processFulizaMessage(
     parsed: ParsedFuliza,
     rawSmsId: number
   ): Promise<void> {
+    // Find the original transaction that triggered this Fuliza (same refCode)
+    const [originalTransaction] = await db
+      .select()
+      .from(transactions)
+      .where(eq(transactions.primaryRefCode, parsed.refCode));
+
     // Check for existing active Fuliza debt
     const [existingDebt] = await db
       .select()
       .from(debts)
       .where(and(eq(debts.type, 'fuliza'), eq(debts.status, 'active')));
 
+    let debtId: number;
+
     if (existingDebt) {
-      // Update existing debt
+      // Update existing debt with cumulative amount
       await db
         .update(debts)
         .set({
@@ -40,9 +49,10 @@ export class DebtService {
           updatedAt: new Date(),
         })
         .where(eq(debts.id, existingDebt.id));
+      debtId = existingDebt.id;
     } else {
       // Create new Fuliza debt
-      await db.insert(debts).values({
+      const [newDebt] = await db.insert(debts).values({
         type: 'fuliza',
         source: 'M-Pesa Fuliza',
         principalAmount: parsed.principal,
@@ -51,26 +61,32 @@ export class DebtService {
         createdDate: new Date(),
         dueDate: parsed.dueDate,
         status: 'active',
-      });
+        originalTransactionId: originalTransaction?.id, // Link to original transaction
+      }).returning({ id: debts.id });
+      debtId = newDebt.id;
     }
 
     // Get Fuliza category ID
     const fulizaCategoryId = await this.getFulizaCategoryId();
 
-    // Create transaction record
+    // Create Fuliza transaction record (this is the overdraft usage)
     await db.insert(transactions).values({
-      primaryRefCode: parsed.refCode,
+      primaryRefCode: `${parsed.refCode}-FULIZA`, // Distinguish from original transaction
+      secondaryRefCode: parsed.refCode, // Link to original
       type: 'debt',
       source: 'mpesa',
       amount: parsed.principal,
       fee: parsed.fee,
       counterparty: 'Fuliza M-Pesa',
       categoryId: fulizaCategoryId,
-      transactionDate: new Date(),
+      transactionDate: parsed.transactionDate,
       rawSmsId,
       isAutoClassified: true,
       confidence: 1.0,
       status: 'classified',
+      notes: originalTransaction
+        ? `Fuliza for: ${originalTransaction.counterparty} (Ksh${originalTransaction.amount / 100})`
+        : undefined,
     });
   }
 

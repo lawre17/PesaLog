@@ -9,12 +9,41 @@ import {
   getSenderType,
 } from '@/constants/sms-patterns';
 
+// Keywords that indicate a failed/rejected transaction
+const FAILED_KEYWORDS = [
+  'failed',
+  'not completed',
+  'was not successful',
+  'unsuccessful',
+  'rejected',
+  'cancelled',
+  'canceled',
+  'could not be processed',
+  'insufficient balance',
+  'insufficient funds',
+  'limit exceeded',
+  'wrong pin',
+  'incorrect pin',
+  'expired',
+  'timed out',
+  'declined',
+];
+
 export class SmsFilterService {
   /**
    * Check if an SMS is from a financial institution
    */
   isFinancialSms(sender: string): boolean {
     return isFinancialSender(sender);
+  }
+
+  /**
+   * Check if the SMS indicates a failed/rejected transaction
+   * Failed transactions should be skipped during import
+   */
+  isFailedTransaction(body: string): boolean {
+    const lowerBody = body.toLowerCase();
+    return FAILED_KEYWORDS.some((keyword) => lowerBody.includes(keyword));
   }
 
   /**

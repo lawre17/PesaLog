@@ -5,6 +5,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { eq, desc, and, gte, lte, sql, inArray } from 'drizzle-orm';
+import { useFocusEffect } from '@react-navigation/native';
 import { db, transactions, categories } from '@/db';
 import { getPeriodBounds } from '@/utils/date';
 import type { Transaction, Category, PeriodStats } from '@/types';
@@ -86,9 +87,12 @@ export function useTransactions(options: UseTransactionsOptions = {}) {
     options.limit,
   ]);
 
-  useEffect(() => {
-    fetchTransactions();
-  }, [fetchTransactions]);
+  // Refetch when screen comes into focus (e.g., after classification)
+  useFocusEffect(
+    useCallback(() => {
+      fetchTransactions();
+    }, [fetchTransactions])
+  );
 
   return { data, isLoading, error, refetch: fetchTransactions };
 }
@@ -180,9 +184,12 @@ export function usePeriodStats(period: 'day' | 'week' | 'month' | 'year' = 'mont
     }
   }, [period]);
 
-  useEffect(() => {
-    fetchStats();
-  }, [fetchStats]);
+  // Refetch when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      fetchStats();
+    }, [fetchStats])
+  );
 
   return { stats, isLoading, error, refetch: fetchStats };
 }
@@ -191,27 +198,30 @@ export function useLatestBalance() {
   const [balance, setBalance] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    async function fetch() {
-      try {
-        // Get most recent transaction with balance
-        const [latest] = await db
-          .select({ balance: transactions.balanceAfter })
-          .from(transactions)
-          .where(sql`${transactions.balanceAfter} IS NOT NULL`)
-          .orderBy(desc(transactions.transactionDate))
-          .limit(1);
+  const fetchBalance = useCallback(async () => {
+    try {
+      // Get most recent transaction with balance
+      const [latest] = await db
+        .select({ balance: transactions.balanceAfter })
+        .from(transactions)
+        .where(sql`${transactions.balanceAfter} IS NOT NULL`)
+        .orderBy(desc(transactions.transactionDate))
+        .limit(1);
 
-        setBalance(latest?.balance ?? null);
-      } catch (err) {
-        console.error('Failed to fetch balance:', err);
-      } finally {
-        setIsLoading(false);
-      }
+      setBalance(latest?.balance ?? null);
+    } catch (err) {
+      console.error('Failed to fetch balance:', err);
+    } finally {
+      setIsLoading(false);
     }
-
-    fetch();
   }, []);
 
-  return { balance, isLoading };
+  // Refetch when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      fetchBalance();
+    }, [fetchBalance])
+  );
+
+  return { balance, isLoading, refetch: fetchBalance };
 }

@@ -115,6 +115,12 @@ export interface ParsedFulizaRepayment extends ParsedSmsBase {
   amountRepaid: number; // in cents
 }
 
+export interface ParsedMshwariTransfer extends ParsedSmsBase {
+  type: 'mshwari_transfer';
+  shwariBalance?: number; // M-Shwari balance after transfer
+  mpesaBalance?: number; // M-Pesa balance after transfer
+}
+
 export type ParsedSms =
   | ParsedMpesaSend
   | ParsedMpesaPaybill
@@ -123,7 +129,8 @@ export type ParsedSms =
   | ParsedBankConfirmation
   | ParsedCardTransaction
   | ParsedFuliza
-  | ParsedFulizaRepayment;
+  | ParsedFulizaRepayment
+  | ParsedMshwariTransfer;
 
 // Classification types
 export interface ClassificationResult {

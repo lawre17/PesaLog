@@ -115,6 +115,20 @@ export const FULIZA_REPAYMENT_PATTERN =
   /^(?<refCode>[A-Z0-9]{10})\s+Confirmed\.\s*(?:Your\s+)?Fuliza\s+M-Pesa\s+(?:loan\s+)?(?:of\s+)?Ksh\s*(?<amount>[\d,]+(?:\.\d{2})?)\s+has\s+been\s+(?:repaid|paid)/i;
 
 /**
+ * M-Shwari Transfer Pattern
+ * Example: "UAH3H48NSC Confirmed.Ksh5,000.00 transferred from M-Shwari account on 17/1/26 at 6:06 PM..."
+ */
+export const MSHWARI_TRANSFER_PATTERN =
+  /^(?<refCode>[A-Z0-9]{10})\s+Confirmed\.?\s*Ksh\s*(?<amount>[\d,]+(?:\.\d{2})?)\s+transferred\s+from\s+M-Shwari\s+account\s+on\s+(?<date>\d{1,2}\/\d{1,2}\/\d{2,4})\s+at\s+(?<time>\d{1,2}:\d{2}\s*[AP]M)\.?\s*(?:M-Shwari\s+balance\s+is\s+Ksh\s*(?<shwariBalance>[\d,]+(?:\.\d{2})?))?\.?\s*(?:M-PESA\s+balance\s+is\s+Ksh\s*(?<mpesaBalance>[\d,]+(?:\.\d{2})?))?/i;
+
+/**
+ * Fuliza Auto-Deduction Pattern (when receiving money and Fuliza is repaid automatically)
+ * Example: "UAH3XXXXX Confirmed. Ksh 723.79 of your Fuliza M-Pesa has been repaid from incoming funds..."
+ */
+export const FULIZA_AUTO_REPAYMENT_PATTERN =
+  /(?<refCode>[A-Z0-9]{10})?\s*(?:Confirmed\.?\s*)?Ksh\s*(?<amount>[\d,]+(?:\.\d{2})?)\s+(?:of\s+your\s+)?Fuliza\s+M-Pesa\s+(?:has\s+been\s+)?(?:repaid|deducted|paid)/i;
+
+/**
  * M-Pesa Balance Check Pattern
  * For detecting balance updates without transactions
  */
@@ -132,6 +146,7 @@ export type SmsPatternType =
   | 'card_transaction'
   | 'fuliza'
   | 'fuliza_repayment'
+  | 'mshwari_transfer'
   | 'unknown';
 
 // Pattern matching order (most specific first)
@@ -145,6 +160,11 @@ export const PATTERNS: Array<{
     type: 'fuliza_repayment',
     pattern: FULIZA_REPAYMENT_PATTERN,
     transactionType: 'debt_repayment',
+  },
+  {
+    type: 'mshwari_transfer',
+    pattern: MSHWARI_TRANSFER_PATTERN,
+    transactionType: 'transfer', // Internal transfer from savings
   },
   {
     type: 'mpesa_received',

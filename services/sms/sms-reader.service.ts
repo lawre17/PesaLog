@@ -28,23 +28,36 @@ export interface SmsReadResult {
   };
 }
 
-export type ImportPeriod = '1month' | '3months' | '6months' | '1year' | 'all';
+export type ImportPeriod = '1month' | '3months' | '6months' | '1year' | 'all' | 'custom';
 
-function getPeriodTimestamp(period: ImportPeriod): number {
+export interface DateRange {
+  startDate: Date;
+  endDate: Date;
+}
+
+function getPeriodTimestamp(period: ImportPeriod, customRange?: DateRange): { minDate: number; maxDate?: number } {
   const now = Date.now();
   const dayMs = 24 * 60 * 60 * 1000;
 
+  if (period === 'custom' && customRange) {
+    return {
+      minDate: customRange.startDate.getTime(),
+      maxDate: customRange.endDate.getTime(),
+    };
+  }
+
   switch (period) {
     case '1month':
-      return now - (30 * dayMs);
+      return { minDate: now - (30 * dayMs) };
     case '3months':
-      return now - (90 * dayMs);
+      return { minDate: now - (90 * dayMs) };
     case '6months':
-      return now - (180 * dayMs);
+      return { minDate: now - (180 * dayMs) };
     case '1year':
-      return now - (365 * dayMs);
+      return { minDate: now - (365 * dayMs) };
     case 'all':
-      return 0; // Beginning of time
+    default:
+      return { minDate: 0 }; // Beginning of time
   }
 }
 
@@ -140,7 +153,8 @@ class SmsReaderService {
 
   async readAllSms(
     period: ImportPeriod,
-    onProgress?: (progress: number, result: Partial<SmsReadResult>) => void
+    onProgress?: (progress: number, result: Partial<SmsReadResult>) => void,
+    customRange?: DateRange
   ): Promise<SmsReadResult> {
     if (Platform.OS !== 'android') {
       throw new Error('SMS reading is only available on Android');
@@ -154,7 +168,7 @@ class SmsReaderService {
       }
     }
 
-    const minDate = getPeriodTimestamp(period);
+    const { minDate, maxDate } = getPeriodTimestamp(period, customRange);
 
     const result: SmsReadResult = {
       totalRead: 0,
@@ -172,11 +186,17 @@ class SmsReaderService {
 
     try {
       // Read all inbox messages from the specified period
-      const filter = {
+      const filter: Record<string, unknown> = {
         box: 'inbox',
-        minDate: minDate > 0 ? minDate : undefined,
         maxCount: 10000, // Limit to prevent memory issues
       };
+
+      if (minDate > 0) {
+        filter.minDate = minDate;
+      }
+      if (maxDate) {
+        filter.maxDate = maxDate;
+      }
 
       onProgress?.(5, result);
 
@@ -263,14 +283,17 @@ class SmsReaderService {
       return { total: 0, financial: 0 };
     }
 
-    const minDate = getPeriodTimestamp(period);
+    const { minDate } = getPeriodTimestamp(period);
 
     try {
-      const filter = {
+      const filter: Record<string, unknown> = {
         box: 'inbox',
-        minDate: minDate > 0 ? minDate : undefined,
         maxCount: 10000,
       };
+
+      if (minDate > 0) {
+        filter.minDate = minDate;
+      }
 
       const messages = await this.readSmsFromDevice(filter);
       const financialCount = messages.filter((msg) =>

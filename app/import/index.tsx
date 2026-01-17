@@ -7,15 +7,18 @@ import {
   Animated,
   Platform,
   Alert,
+  ScrollView,
 } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import { Card } from '@/components/ui/card';
-import { smsReader, ImportPeriod } from '@/services/sms/sms-reader.service';
+import { smsReader, ImportPeriod, DateRange } from '@/services/sms/sms-reader.service';
+import { dataManagement } from '@/services/data-management.service';
 
 type ImportStatus = 'idle' | 'scanning' | 'complete' | 'error';
 
@@ -31,6 +34,7 @@ const PERIOD_OPTIONS: PeriodOption[] = [
   { value: '6months', label: '6 Months', description: 'Last 180 days' },
   { value: '1year', label: '1 Year', description: 'Last 365 days' },
   { value: 'all', label: 'All Time', description: 'All available SMS' },
+  { value: 'custom', label: 'Custom', description: 'Select date range' },
 ];
 
 interface ImportStats {
@@ -61,6 +65,17 @@ export default function ImportScreen() {
   });
   const [progress, setProgress] = useState(0);
   const [errorMessage, setErrorMessage] = useState('');
+
+  // Custom date range state
+  const [customStartDate, setCustomStartDate] = useState<Date>(() => {
+    const d = new Date();
+    d.setMonth(d.getMonth() - 1); // Default to 1 month ago
+    return d;
+  });
+  const [customEndDate, setCustomEndDate] = useState<Date>(new Date());
+  const [showStartPicker, setShowStartPicker] = useState(false);
+  const [showEndPicker, setShowEndPicker] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
 
   const progressAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -96,6 +111,36 @@ export default function ImportScreen() {
     }).start();
   }, [progress, progressAnim]);
 
+  const handleClearData = () => {
+    Alert.alert(
+      'Clear All Data',
+      'This will delete all imported transactions, SMS records, and debts. This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear All',
+          style: 'destructive',
+          onPress: async () => {
+            setIsClearing(true);
+            try {
+              const result = await dataManagement.clearAllData();
+              Alert.alert(
+                'Data Cleared',
+                `Deleted ${result.transactions} transactions, ${result.rawSms} SMS records, and ${result.debts} debts.`,
+                [{ text: 'OK' }]
+              );
+            } catch (err) {
+              console.error('Failed to clear data:', err);
+              Alert.alert('Error', 'Failed to clear data. Please try again.');
+            } finally {
+              setIsClearing(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleStartImport = async () => {
     if (Platform.OS !== 'android') {
       Alert.alert(
@@ -119,6 +164,12 @@ export default function ImportScreen() {
       duplicates: 0,
     });
 
+    // Prepare custom date range if selected
+    const customRange: DateRange | undefined =
+      selectedPeriod === 'custom'
+        ? { startDate: customStartDate, endDate: customEndDate }
+        : undefined;
+
     try {
       const result = await smsReader.readAllSms(
         selectedPeriod,
@@ -135,7 +186,8 @@ export default function ImportScreen() {
               duplicates: partialResult.duplicates || 0,
             });
           }
-        }
+        },
+        customRange
       );
 
       setStats({
@@ -153,6 +205,28 @@ export default function ImportScreen() {
       setStatus('error');
       setErrorMessage(err instanceof Error ? err.message : 'Failed to read SMS messages');
     }
+  };
+
+  const onStartDateChange = (event: DateTimePickerEvent, date?: Date) => {
+    setShowStartPicker(false);
+    if (date) {
+      setCustomStartDate(date);
+    }
+  };
+
+  const onEndDateChange = (event: DateTimePickerEvent, date?: Date) => {
+    setShowEndPicker(false);
+    if (date) {
+      setCustomEndDate(date);
+    }
+  };
+
+  const formatDate = (date: Date): string => {
+    return date.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
   };
 
   const progressWidth = progressAnim.interpolate({
@@ -339,9 +413,68 @@ export default function ImportScreen() {
                   </Pressable>
                 ))}
               </View>
-              <Text style={[styles.periodDescription, { color: colors.textSecondary }]}>
-                {PERIOD_OPTIONS.find((o) => o.value === selectedPeriod)?.description}
-              </Text>
+
+              {/* Custom Date Range Picker */}
+              {selectedPeriod === 'custom' && (
+                <View style={styles.dateRangeContainer}>
+                  <View style={styles.datePickerRow}>
+                    <View style={styles.datePickerItem}>
+                      <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>
+                        From
+                      </Text>
+                      <Pressable
+                        style={[styles.dateButton, { backgroundColor: colors.backgroundSecondary }]}
+                        onPress={() => setShowStartPicker(true)}
+                      >
+                        <Ionicons name="calendar-outline" size={18} color={colors.primary} />
+                        <Text style={[styles.dateText, { color: colors.text }]}>
+                          {formatDate(customStartDate)}
+                        </Text>
+                      </Pressable>
+                    </View>
+                    <View style={styles.datePickerItem}>
+                      <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>
+                        To
+                      </Text>
+                      <Pressable
+                        style={[styles.dateButton, { backgroundColor: colors.backgroundSecondary }]}
+                        onPress={() => setShowEndPicker(true)}
+                      >
+                        <Ionicons name="calendar-outline" size={18} color={colors.primary} />
+                        <Text style={[styles.dateText, { color: colors.text }]}>
+                          {formatDate(customEndDate)}
+                        </Text>
+                      </Pressable>
+                    </View>
+                  </View>
+
+                  {showStartPicker && (
+                    <DateTimePicker
+                      value={customStartDate}
+                      mode="date"
+                      display="default"
+                      onChange={onStartDateChange}
+                      maximumDate={customEndDate}
+                    />
+                  )}
+                  {showEndPicker && (
+                    <DateTimePicker
+                      value={customEndDate}
+                      mode="date"
+                      display="default"
+                      onChange={onEndDateChange}
+                      minimumDate={customStartDate}
+                      maximumDate={new Date()}
+                    />
+                  )}
+                </View>
+              )}
+
+              {selectedPeriod !== 'custom' && (
+                <Text style={[styles.periodDescription, { color: colors.textSecondary }]}>
+                  {PERIOD_OPTIONS.find((o) => o.value === selectedPeriod)?.description}
+                </Text>
+              )}
             </View>
           )}
 
@@ -370,13 +503,29 @@ export default function ImportScreen() {
         {/* Footer */}
         <View style={styles.footer}>
           {status === 'idle' && (
-            <Pressable
-              style={[styles.button, { backgroundColor: colors.primary }]}
-              onPress={handleStartImport}
-            >
-              <Ionicons name="cloud-download" size={22} color="white" />
-              <Text style={styles.buttonText}>Start Import</Text>
-            </Pressable>
+            <View style={styles.footerButtons}>
+              <Pressable
+                style={[styles.button, { backgroundColor: colors.primary }]}
+                onPress={handleStartImport}
+              >
+                <Ionicons name="cloud-download" size={22} color="white" />
+                <Text style={styles.buttonText}>Start Import</Text>
+              </Pressable>
+
+              <Pressable
+                style={[
+                  styles.secondaryButton,
+                  { borderColor: colors.error },
+                ]}
+                onPress={handleClearData}
+                disabled={isClearing}
+              >
+                <Ionicons name="trash-outline" size={20} color={colors.error} />
+                <Text style={[styles.secondaryButtonText, { color: colors.error }]}>
+                  {isClearing ? 'Clearing...' : 'Clear All Data'}
+                </Text>
+              </Pressable>
+            </View>
           )}
 
           {status === 'complete' && (
@@ -566,6 +715,9 @@ const styles = StyleSheet.create({
     padding: 24,
     paddingBottom: 16,
   },
+  footerButtons: {
+    gap: 12,
+  },
   button: {
     flexDirection: 'row',
     paddingVertical: 16,
@@ -578,5 +730,48 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 18,
     fontWeight: '600',
+  },
+  secondaryButton: {
+    flexDirection: 'row',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderWidth: 1,
+  },
+  secondaryButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  dateRangeContainer: {
+    marginTop: 16,
+  },
+  datePickerRow: {
+    flexDirection: 'row',
+    gap: 16,
+    justifyContent: 'center',
+  },
+  datePickerItem: {
+    flex: 1,
+    maxWidth: 160,
+  },
+  dateLabel: {
+    fontSize: 13,
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  dateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    gap: 8,
+  },
+  dateText: {
+    fontSize: 14,
+    fontWeight: '500',
   },
 });

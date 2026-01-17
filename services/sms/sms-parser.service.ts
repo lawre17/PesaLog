@@ -13,6 +13,7 @@ import {
   CARD_TRANSACTION_PATTERN,
   FULIZA_PATTERN,
   FULIZA_REPAYMENT_PATTERN,
+  MSHWARI_TRANSFER_PATTERN,
   type SmsPatternType,
 } from '@/constants/sms-patterns';
 import { parseAmountToCents, parseCurrency } from '@/utils/currency';
@@ -27,6 +28,7 @@ import type {
   ParsedCardTransaction,
   ParsedFuliza,
   ParsedFulizaRepayment,
+  ParsedMshwariTransfer,
 } from '@/types';
 
 export interface ParseResult {
@@ -94,6 +96,8 @@ export class SmsParserService {
         return this.parseFuliza(groups, rawBody);
       case 'fuliza_repayment':
         return this.parseFulizaRepayment(groups, rawBody);
+      case 'mshwari_transfer':
+        return this.parseMshwariTransfer(groups, rawBody);
       default:
         return null;
     }
@@ -235,6 +239,26 @@ export class SmsParserService {
     };
   }
 
+  private parseMshwariTransfer(
+    groups: Record<string, string>,
+    rawBody: string
+  ): ParsedMshwariTransfer {
+    return {
+      type: 'mshwari_transfer',
+      refCode: groups.refCode,
+      amount: parseAmountToCents(groups.amount),
+      currency: 'KES',
+      transactionDate: parseSmsDate(groups.date, groups.time),
+      shwariBalance: groups.shwariBalance
+        ? parseAmountToCents(groups.shwariBalance)
+        : undefined,
+      mpesaBalance: groups.mpesaBalance
+        ? parseAmountToCents(groups.mpesaBalance)
+        : undefined,
+      rawBody,
+    };
+  }
+
   /**
    * Check if a recipient appears to be a person (has phone number)
    */
@@ -269,6 +293,8 @@ export class SmsParserService {
         return 'Fuliza M-Pesa';
       case 'fuliza_repayment':
         return 'Fuliza M-Pesa';
+      case 'mshwari_transfer':
+        return 'M-Shwari';
       default:
         return 'Unknown';
     }
