@@ -120,6 +120,12 @@ export const DEFAULT_CATEGORIES = [
     color: '#FFD60A',
     isSystem: true,
   },
+  {
+    name: 'Borrowing',
+    icon: 'hand.point.down.fill',
+    color: '#FF9F0A',
+    isSystem: true,
+  },
 
   // Debt categories
   {

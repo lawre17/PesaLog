@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import { Card } from '@/components/ui/card';
@@ -32,9 +33,12 @@ export function BalanceCard({
       </Text>
       {change !== undefined && (
         <View style={styles.changeContainer}>
-          <Text style={styles.changeIcon}>
-            {isPositiveChange ? '\u25B2' : '\u25BC'}
-          </Text>
+          <Ionicons
+            name={isPositiveChange ? 'trending-up' : 'trending-down'}
+            size={16}
+            color="rgba(255,255,255,0.9)"
+            style={styles.changeIcon}
+          />
           <Text style={styles.changeText}>
             {isPositiveChange ? '+' : ''}
             {formatCurrency(change, 'KES', { compact: true })} {changeLabel}
@@ -66,8 +70,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   changeIcon: {
-    color: 'rgba(255,255,255,0.9)',
-    fontSize: 12,
     marginRight: 4,
   },
   changeText: {

@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import { Card } from '@/components/ui/card';
@@ -45,7 +46,9 @@ export function DebtWidget({ summary, onPress }: DebtWidgetProps) {
         {hasFuliza && (
           <View style={styles.section}>
             <View style={styles.row}>
-              <Text style={styles.icon}>{'\u26A0\uFE0F'}</Text>
+              <View style={styles.iconContainer}>
+                <Ionicons name="flash" size={20} color="white" />
+              </View>
               <View style={styles.content}>
                 <Text style={styles.label}>Fuliza Outstanding</Text>
                 <Text style={styles.amount}>
@@ -72,7 +75,9 @@ export function DebtWidget({ summary, onPress }: DebtWidgetProps) {
         {hasOwedByOthers && (
           <View style={[styles.section, hasFuliza && styles.sectionBorder]}>
             <View style={styles.row}>
-              <Text style={styles.icon}>{'\uD83D\uDCB0'}</Text>
+              <View style={styles.iconContainer}>
+                <Ionicons name="arrow-down-circle" size={20} color="white" />
+              </View>
               <View style={styles.content}>
                 <Text style={styles.label}>
                   Owed to you ({summary.owedByOthers.count})
@@ -93,7 +98,9 @@ export function DebtWidget({ summary, onPress }: DebtWidgetProps) {
             ]}
           >
             <View style={styles.row}>
-              <Text style={styles.icon}>{'\uD83D\uDCB8'}</Text>
+              <View style={styles.iconContainer}>
+                <Ionicons name="arrow-up-circle" size={20} color="white" />
+              </View>
               <View style={styles.content}>
                 <Text style={styles.label}>
                   You owe ({summary.owedToOthers.count})
@@ -129,9 +136,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  icon: {
-    fontSize: 20,
+  iconContainer: {
+    width: 28,
     marginRight: 12,
+    alignItems: 'center',
   },
   content: {
     flex: 1,

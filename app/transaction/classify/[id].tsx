@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { eq } from 'drizzle-orm';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -23,6 +24,8 @@ import { formatCurrency } from '@/utils/currency';
 import { formatDate } from '@/utils/date';
 import type { Transaction, Category } from '@/types';
 
+type DebtType = 'none' | 'lending' | 'borrowing';
+
 export default function ClassifyTransactionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -31,7 +34,7 @@ export default function ClassifyTransactionScreen() {
 
   const [transaction, setTransaction] = useState<Transaction | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
-  const [isLending, setIsLending] = useState(false);
+  const [debtType, setDebtType] = useState<DebtType>('none');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -39,6 +42,8 @@ export default function ClassifyTransactionScreen() {
 
   // Detect if this is a person-to-person transfer
   const isPerson = transaction?.counterpartyPhone != null;
+  const isIncome = transaction?.type === 'income';
+  const isExpense = transaction?.type === 'expense' || transaction?.type === 'transfer';
 
   // Load transaction
   useEffect(() => {
@@ -66,27 +71,39 @@ export default function ClassifyTransactionScreen() {
   // Handle category selection
   const handleSelectCategory = (categoryId: number) => {
     setSelectedCategory(categoryId);
-    // Reset lending state if not selecting a transfer category
+    // Reset debt type if not selecting a transfer category
     const category = [...grouped.expense, ...grouped.transfer, ...grouped.income].find(
       (c) => c.id === categoryId
     );
-    if (category?.name !== 'Lending') {
-      setIsLending(false);
+    if (category?.name !== 'Lending' && category?.name !== 'Borrowing') {
+      setDebtType('none');
     }
   };
 
-  // Handle marking as lending
+  // Handle marking as lending (money you gave to someone)
   const handleMarkAsLending = () => {
     const lendingCategory = grouped.transfer.find((c) => c.name === 'Lending');
     if (lendingCategory) {
       setSelectedCategory(lendingCategory.id);
-      setIsLending(true);
+      setDebtType('lending');
+    }
+  };
+
+  // Handle marking as borrowing (money you received from someone as a loan)
+  const handleMarkAsBorrowing = () => {
+    const borrowingCategory = grouped.transfer.find((c) => c.name === 'Borrowing');
+    if (borrowingCategory) {
+      setSelectedCategory(borrowingCategory.id);
+      setDebtType('borrowing');
+    } else {
+      // Fallback if no Borrowing category exists
+      setDebtType('borrowing');
     }
   };
 
   // Save classification
   const handleSave = async () => {
-    if (!transaction || !selectedCategory) {
+    if (!transaction || (!selectedCategory && debtType === 'none')) {
       Alert.alert('Error', 'Please select a category');
       return;
     }
@@ -95,10 +112,15 @@ export default function ClassifyTransactionScreen() {
 
     try {
       // Classify the transaction
-      await autoClassifier.userClassify(transaction.id, selectedCategory, isLending);
+      const isDebtRelated = debtType !== 'none';
+      await autoClassifier.userClassify(
+        transaction.id,
+        selectedCategory || 0,
+        isDebtRelated
+      );
 
-      // If marked as lending, create a debt entry
-      if (isLending && transaction.counterparty) {
+      // If marked as lending (money you gave), create a debt entry - they owe you
+      if (debtType === 'lending' && transaction.counterparty) {
         await debtService.createPersonalDebt(
           'owed_by_person', // They owe us
           transaction.id,
@@ -106,6 +128,18 @@ export default function ClassifyTransactionScreen() {
           transaction.counterparty,
           transaction.counterpartyPhone || undefined,
           `Money lent on ${formatDate(transaction.transactionDate, 'medium')}`
+        );
+      }
+
+      // If marked as borrowing (money you received), create a debt entry - you owe them
+      if (debtType === 'borrowing' && transaction.counterparty) {
+        await debtService.createPersonalDebt(
+          'owed_to_person', // You owe them
+          transaction.id,
+          transaction.amount,
+          transaction.counterparty,
+          transaction.counterpartyPhone || undefined,
+          `Money borrowed on ${formatDate(transaction.transactionDate, 'medium')}`
         );
       }
 
@@ -179,10 +213,23 @@ export default function ClassifyTransactionScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         {/* Transaction Summary */}
         <Card variant="elevated" style={styles.summaryCard}>
-          <Text style={[styles.amount, { color: colors.expense }]}>
-            {formatCurrency(transaction.amount, transaction.currency || 'KES')}
-          </Text>
+          <View style={styles.amountRow}>
+            <Ionicons
+              name={isIncome ? 'arrow-down-circle' : 'arrow-up-circle'}
+              size={28}
+              color={isIncome ? colors.income : colors.expense}
+            />
+            <Text
+              style={[
+                styles.amount,
+                { color: isIncome ? colors.income : colors.expense },
+              ]}
+            >
+              {formatCurrency(transaction.amount, transaction.currency || 'KES')}
+            </Text>
+          </View>
           <Text style={[styles.counterparty, { color: colors.text }]}>
+            {isIncome ? 'From: ' : 'To: '}
             {transaction.counterparty || 'Unknown'}
           </Text>
           {transaction.counterpartyPhone && (
@@ -195,56 +242,64 @@ export default function ClassifyTransactionScreen() {
           </Text>
         </Card>
 
-        {/* Person-to-Person Lending Option */}
-        {isPerson && (
+        {/* Person-to-Person Lending Option (for outgoing money) */}
+        {isPerson && isExpense && (
           <Card
             variant="outlined"
             style={[
-              styles.lendingCard,
-              isLending && { borderColor: colors.primary, borderWidth: 2 },
+              styles.debtCard,
+              debtType === 'lending' && { borderColor: colors.primary, borderWidth: 2 },
             ]}
           >
-            <Text style={[styles.lendingTitle, { color: colors.text }]}>
-              Is this money you lent?
+            <View style={styles.debtHeader}>
+              <Ionicons name="arrow-redo" size={24} color={colors.primary} />
+              <Text style={[styles.debtTitle, { color: colors.text }]}>
+                Is this money you lent?
+              </Text>
+            </View>
+            <Text style={[styles.debtSubtitle, { color: colors.textSecondary }]}>
+              Track this as a debt owed to you by {transaction.counterparty}
             </Text>
-            <Text style={[styles.lendingSubtitle, { color: colors.textSecondary }]}>
-              Track this as a debt owed to you
-            </Text>
-            <View style={styles.lendingButtons}>
+            <View style={styles.debtButtons}>
               <Pressable
                 style={[
-                  styles.lendingButton,
+                  styles.debtButton,
                   {
-                    backgroundColor: isLending
+                    backgroundColor: debtType === 'lending'
                       ? colors.primary
                       : colors.backgroundSecondary,
                   },
                 ]}
                 onPress={handleMarkAsLending}
               >
+                <Ionicons
+                  name="checkmark-circle"
+                  size={18}
+                  color={debtType === 'lending' ? 'white' : colors.text}
+                />
                 <Text
                   style={[
-                    styles.lendingButtonText,
-                    { color: isLending ? 'white' : colors.text },
+                    styles.debtButtonText,
+                    { color: debtType === 'lending' ? 'white' : colors.text },
                   ]}
                 >
-                  Yes, it&apos;s a loan
+                  Yes, I lent this
                 </Text>
               </Pressable>
               <Pressable
                 style={[
-                  styles.lendingButton,
+                  styles.debtButton,
                   {
-                    backgroundColor: !isLending
+                    backgroundColor: debtType !== 'lending'
                       ? colors.backgroundSecondary
                       : 'transparent',
                     borderWidth: 1,
                     borderColor: colors.border,
                   },
                 ]}
-                onPress={() => setIsLending(false)}
+                onPress={() => setDebtType('none')}
               >
-                <Text style={[styles.lendingButtonText, { color: colors.text }]}>
+                <Text style={[styles.debtButtonText, { color: colors.text }]}>
                   No, regular expense
                 </Text>
               </Pressable>
@@ -252,10 +307,75 @@ export default function ClassifyTransactionScreen() {
           </Card>
         )}
 
+        {/* Person-to-Person Borrowing Option (for incoming money) */}
+        {isPerson && isIncome && (
+          <Card
+            variant="outlined"
+            style={[
+              styles.debtCard,
+              debtType === 'borrowing' && { borderColor: colors.debt, borderWidth: 2 },
+            ]}
+          >
+            <View style={styles.debtHeader}>
+              <Ionicons name="arrow-undo" size={24} color={colors.debt} />
+              <Text style={[styles.debtTitle, { color: colors.text }]}>
+                Is this money you borrowed?
+              </Text>
+            </View>
+            <Text style={[styles.debtSubtitle, { color: colors.textSecondary }]}>
+              Track this as money you owe to {transaction.counterparty}
+            </Text>
+            <View style={styles.debtButtons}>
+              <Pressable
+                style={[
+                  styles.debtButton,
+                  {
+                    backgroundColor: debtType === 'borrowing'
+                      ? colors.debt
+                      : colors.backgroundSecondary,
+                  },
+                ]}
+                onPress={handleMarkAsBorrowing}
+              >
+                <Ionicons
+                  name="checkmark-circle"
+                  size={18}
+                  color={debtType === 'borrowing' ? 'white' : colors.text}
+                />
+                <Text
+                  style={[
+                    styles.debtButtonText,
+                    { color: debtType === 'borrowing' ? 'white' : colors.text },
+                  ]}
+                >
+                  Yes, I borrowed this
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[
+                  styles.debtButton,
+                  {
+                    backgroundColor: debtType !== 'borrowing'
+                      ? colors.backgroundSecondary
+                      : 'transparent',
+                    borderWidth: 1,
+                    borderColor: colors.border,
+                  },
+                ]}
+                onPress={() => setDebtType('none')}
+              >
+                <Text style={[styles.debtButtonText, { color: colors.text }]}>
+                  No, regular income
+                </Text>
+              </Pressable>
+            </View>
+          </Card>
+        )}
+
         {/* Category Selection */}
-        {!isLending && (
+        {debtType === 'none' && (
           <>
-            {transaction.type === 'income' && (
+            {isIncome && (
               <>
                 <Text style={[styles.sectionTitle, { color: colors.text }]}>
                   Income Categories
@@ -268,7 +388,7 @@ export default function ClassifyTransactionScreen() {
               </>
             )}
 
-            {(transaction.type === 'expense' || transaction.type === 'transfer') && (
+            {isExpense && (
               <>
                 <Text style={[styles.sectionTitle, { color: colors.text }]}>
                   Expense Categories
@@ -304,17 +424,25 @@ export default function ClassifyTransactionScreen() {
             styles.saveButton,
             {
               backgroundColor:
-                selectedCategory || isLending ? colors.primary : colors.border,
+                selectedCategory || debtType !== 'none'
+                  ? debtType === 'borrowing'
+                    ? colors.debt
+                    : colors.primary
+                  : colors.border,
             },
           ]}
           onPress={handleSave}
-          disabled={(!selectedCategory && !isLending) || isSaving}
+          disabled={(!selectedCategory && debtType === 'none') || isSaving}
         >
           {isSaving ? (
             <ActivityIndicator color="white" />
           ) : (
             <Text style={styles.saveButtonText}>
-              {isLending ? 'Save as Loan' : 'Save Category'}
+              {debtType === 'lending'
+                ? 'Save as Money Lent'
+                : debtType === 'borrowing'
+                ? 'Save as Money Borrowed'
+                : 'Save Category'}
             </Text>
           )}
         </Pressable>
@@ -343,6 +471,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 16,
   },
+  amountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   amount: {
     fontSize: 32,
     fontWeight: '700',
@@ -360,29 +493,37 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 8,
   },
-  lendingCard: {
+  debtCard: {
     marginBottom: 16,
   },
-  lendingTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+  debtHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     marginBottom: 4,
   },
-  lendingSubtitle: {
+  debtTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  debtSubtitle: {
     fontSize: 14,
     marginBottom: 12,
   },
-  lendingButtons: {
+  debtButtons: {
     flexDirection: 'row',
     gap: 8,
   },
-  lendingButton: {
+  debtButton: {
     flex: 1,
+    flexDirection: 'row',
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
   },
-  lendingButtonText: {
+  debtButtonText: {
     fontSize: 14,
     fontWeight: '500',
   },

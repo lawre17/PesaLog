@@ -97,6 +97,10 @@ function RootNavigator() {
         name="debts/[id]"
         options={{ presentation: 'card', title: 'Debt Details' }}
       />
+      <Stack.Screen
+        name="debts/add"
+        options={{ presentation: 'modal', title: 'Add Debt' }}
+      />
     </Stack>
   );
 }

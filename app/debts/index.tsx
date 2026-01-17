@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { useRouter, Stack } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
@@ -40,9 +41,23 @@ export default function DebtsScreen() {
     (d) => d.type === 'owed_by_person' || d.type === 'owed_to_person'
   );
 
+  const getDebtIcon = (type: string) => {
+    switch (type) {
+      case 'fuliza':
+        return { name: 'flash' as const, color: colors.warning };
+      case 'owed_by_person':
+        return { name: 'arrow-down-circle' as const, color: colors.income };
+      case 'owed_to_person':
+        return { name: 'arrow-up-circle' as const, color: colors.expense };
+      default:
+        return { name: 'document-text' as const, color: colors.debt };
+    }
+  };
+
   const DebtCard = ({ debt }: { debt: Debt }) => {
     const daysUntil = debt.dueDate ? getDaysUntilDue(debt.dueDate) : null;
     const overdue = debt.dueDate ? isOverdue(debt.dueDate) : false;
+    const icon = getDebtIcon(debt.type);
 
     let statusColor = colors.primary;
     let statusText = '';
@@ -64,19 +79,22 @@ export default function DebtsScreen() {
       >
         <Card variant="outlined" style={styles.debtCard}>
           <View style={styles.debtHeader}>
-            <View>
-              <Text style={[styles.debtTitle, { color: colors.text }]}>
-                {debt.type === 'fuliza'
-                  ? 'Fuliza M-Pesa'
-                  : debt.counterparty || 'Unknown'}
-              </Text>
-              <Text style={[styles.debtType, { color: colors.textSecondary }]}>
-                {debt.type === 'owed_by_person'
-                  ? 'Owes you'
-                  : debt.type === 'owed_to_person'
-                  ? 'You owe'
-                  : 'Overdraft'}
-              </Text>
+            <View style={styles.debtLeft}>
+              <Ionicons name={icon.name} size={24} color={icon.color} />
+              <View style={styles.debtInfo}>
+                <Text style={[styles.debtTitle, { color: colors.text }]}>
+                  {debt.type === 'fuliza'
+                    ? 'Fuliza M-Pesa'
+                    : debt.counterparty || 'Unknown'}
+                </Text>
+                <Text style={[styles.debtType, { color: colors.textSecondary }]}>
+                  {debt.type === 'owed_by_person'
+                    ? 'Owes you'
+                    : debt.type === 'owed_to_person'
+                    ? 'You owe'
+                    : 'Overdraft'}
+                </Text>
+              </View>
             </View>
             <View style={styles.debtAmountContainer}>
               <Text style={[styles.debtAmount, { color: colors.debt }]}>
@@ -176,15 +194,24 @@ export default function DebtsScreen() {
           {/* Empty State */}
           {debts.length === 0 && !isLoading && (
             <View style={styles.emptyState}>
+              <Ionicons name="receipt-outline" size={48} color={colors.textSecondary} />
               <Text style={[styles.emptyTitle, { color: colors.text }]}>
                 No active debts
               </Text>
               <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
-                Fuliza overdrafts and money you lend will appear here
+                Fuliza overdrafts, money you lend, and money you borrow will appear here
               </Text>
             </View>
           )}
         </ScrollView>
+
+        {/* Add Debt FAB */}
+        <Pressable
+          style={[styles.fab, { backgroundColor: colors.primary }]}
+          onPress={() => router.push('/debts/add' as never)}
+        >
+          <Ionicons name="add" size={28} color="white" />
+        </Pressable>
       </SafeAreaView>
     </>
   );
@@ -245,6 +272,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
   },
+  debtLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  debtInfo: {
+    flex: 1,
+  },
   debtTitle: {
     fontSize: 16,
     fontWeight: '500',
@@ -293,5 +329,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 8,
     textAlign: 'center',
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 8,
   },
 });
