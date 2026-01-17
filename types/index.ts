@@ -75,6 +75,23 @@ export interface ParsedMpesaPaybill extends ParsedSmsBase {
   fee?: number;
 }
 
+export interface ParsedMpesaTill extends ParsedSmsBase {
+  type: 'mpesa_till';
+  tillName: string;
+  tillNumber: string;
+}
+
+export interface ParsedMpesaAirtime extends ParsedSmsBase {
+  type: 'mpesa_airtime';
+  balance?: number;
+}
+
+export interface ParsedMpesaAgent extends ParsedSmsBase {
+  type: 'mpesa_agent';
+  agentName: string;
+  balance?: number;
+}
+
 export interface ParsedMpesaReceived extends ParsedSmsBase {
   type: 'mpesa_received';
   sender: string;
@@ -115,6 +132,14 @@ export interface ParsedFulizaRepayment extends ParsedSmsBase {
   amountRepaid: number; // in cents
 }
 
+export interface ParsedFulizaAutoRepayment extends ParsedSmsBase {
+  type: 'fuliza_auto_repayment';
+  amountRepaid: number; // in cents
+  paymentType: 'partially' | 'fully';
+  availableLimit: number; // in cents
+  balance: number; // M-PESA balance after repayment
+}
+
 export interface ParsedMshwariTransfer extends ParsedSmsBase {
   type: 'mshwari_transfer';
   shwariBalance?: number; // M-Shwari balance after transfer
@@ -124,12 +149,16 @@ export interface ParsedMshwariTransfer extends ParsedSmsBase {
 export type ParsedSms =
   | ParsedMpesaSend
   | ParsedMpesaPaybill
+  | ParsedMpesaTill
+  | ParsedMpesaAirtime
+  | ParsedMpesaAgent
   | ParsedMpesaReceived
   | ParsedBankTransfer
   | ParsedBankConfirmation
   | ParsedCardTransaction
   | ParsedFuliza
   | ParsedFulizaRepayment
+  | ParsedFulizaAutoRepayment
   | ParsedMshwariTransfer;
 
 // Classification types

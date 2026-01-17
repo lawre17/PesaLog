@@ -68,6 +68,38 @@ export function parseSmsDate(dateStr: string, timeStr?: string): Date {
 }
 
 /**
+ * Parse date from Till/Buy Goods format (DD-MM-YYYY HH:MM)
+ * Example: "03-01-2026 at 16:30"
+ */
+export function parseTillDate(dateStr: string, timeStr?: string): Date {
+  const cleanDate = dateStr.trim();
+  const cleanTime = timeStr?.trim() || '';
+
+  // Parse DD-MM-YYYY format
+  const parts = cleanDate.split('-').map((p) => parseInt(p, 10));
+
+  if (parts.length !== 3) {
+    throw new Error(`Invalid Till date format: ${dateStr}`);
+  }
+
+  const [day, month, year] = parts;
+
+  // Parse time (HH:MM format, 24-hour)
+  let hours = 0;
+  let minutes = 0;
+
+  if (cleanTime) {
+    const timeMatch = cleanTime.match(/(\d{1,2}):(\d{2})/);
+    if (timeMatch) {
+      hours = parseInt(timeMatch[1], 10);
+      minutes = parseInt(timeMatch[2], 10);
+    }
+  }
+
+  return new Date(year, month - 1, day, hours, minutes);
+}
+
+/**
  * Parse due date from Fuliza format (DD/MM/YY)
  */
 export function parseFulizaDueDate(dueDateStr: string): Date {

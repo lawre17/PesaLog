@@ -10,7 +10,7 @@ import { smsFilter } from './sms-filter.service';
 import { smsParser, type ParseResult } from './sms-parser.service';
 import { referenceLinker } from './reference-linker.service';
 import { debtService } from '../debt.service';
-import type { ParsedSms, ParsedFuliza, ParsedFulizaRepayment } from '@/types';
+import type { ParsedSms, ParsedFuliza, ParsedFulizaRepayment, ParsedFulizaAutoRepayment } from '@/types';
 
 export interface SmsProcessingResult {
   success: boolean;
@@ -159,10 +159,20 @@ export class SmsListenerService {
         };
       }
 
-      // 7. Handle Fuliza repayment specially
-      if (parseResult.patternType === 'fuliza_repayment') {
+      // 7. Handle Fuliza repayment specially (both standard and auto-repayment)
+      if (parseResult.patternType === 'fuliza_repayment' || parseResult.patternType === 'fuliza_auto_repayment') {
+        // Both types have amountRepaid property
+        const repaymentData = parseResult.data as ParsedFulizaRepayment | ParsedFulizaAutoRepayment;
         await debtService.processFulizaRepayment(
-          parseResult.data as ParsedFulizaRepayment,
+          {
+            type: 'fuliza_repayment',
+            refCode: repaymentData.refCode,
+            amount: repaymentData.amount,
+            currency: repaymentData.currency,
+            amountRepaid: repaymentData.amountRepaid,
+            transactionDate: repaymentData.transactionDate,
+            rawBody: repaymentData.rawBody,
+          },
           rawSmsRecord.id
         );
 
@@ -253,7 +263,47 @@ export class SmsListenerService {
       .values(transactionData)
       .returning({ id: transactions.id, status: transactions.status });
 
+    // Check if any Fuliza transactions reference this refCode (Fuliza arrived before this transaction)
+    // If so, update their notes to show what the Fuliza was used for
+    await this.linkOrphanedFulizaTransactions(parsed.refCode, counterparty, parsed.amount);
+
     return transaction;
+  }
+
+  /**
+   * Link Fuliza transactions that were processed before their parent transaction
+   * Updates the notes field to show what the Fuliza was used for
+   */
+  private async linkOrphanedFulizaTransactions(
+    refCode: string,
+    counterparty: string,
+    amount: number
+  ): Promise<void> {
+    try {
+      // Find Fuliza transactions that reference this refCode but have no notes
+      const orphanedFuliza = await db
+        .select()
+        .from(transactions)
+        .where(
+          eq(transactions.secondaryRefCode, refCode)
+        );
+
+      if (orphanedFuliza.length > 0) {
+        // Update their notes to link to the parent transaction
+        await db
+          .update(transactions)
+          .set({
+            notes: `Fuliza for: ${counterparty} (Ksh${amount / 100})`,
+            updatedAt: new Date(),
+          })
+          .where(eq(transactions.secondaryRefCode, refCode));
+
+        console.log(`Linked ${orphanedFuliza.length} orphaned Fuliza transaction(s) to ${counterparty}`);
+      }
+    } catch (error) {
+      // Don't fail the main transaction if linking fails
+      console.warn('Failed to link orphaned Fuliza transactions:', error);
+    }
   }
 
   /**
@@ -265,9 +315,14 @@ export class SmsListenerService {
     switch (parsed.type) {
       case 'mpesa_send':
       case 'mpesa_paybill':
+      case 'mpesa_till':
+      case 'mpesa_airtime':
+      case 'mpesa_agent':
       case 'mpesa_received':
       case 'fuliza':
       case 'fuliza_repayment':
+      case 'fuliza_auto_repayment':
+      case 'mshwari_transfer':
         return 'mpesa';
       case 'bank_transfer':
       case 'bank_confirmation':

@@ -5,29 +5,24 @@
 
 import {
   PATTERNS,
-  MPESA_SEND_PATTERN,
-  MPESA_PAYBILL_PATTERN,
-  MPESA_RECEIVED_PATTERN,
-  BANK_TRANSFER_PATTERN,
-  BANK_CONFIRMATION_PATTERN,
-  CARD_TRANSACTION_PATTERN,
-  FULIZA_PATTERN,
-  FULIZA_REPAYMENT_PATTERN,
-  MSHWARI_TRANSFER_PATTERN,
   type SmsPatternType,
 } from '@/constants/sms-patterns';
 import { parseAmountToCents, parseCurrency } from '@/utils/currency';
-import { parseSmsDate, parseFulizaDueDate } from '@/utils/date';
+import { parseSmsDate, parseFulizaDueDate, parseTillDate } from '@/utils/date';
 import type {
   ParsedSms,
   ParsedMpesaSend,
   ParsedMpesaPaybill,
+  ParsedMpesaTill,
+  ParsedMpesaAirtime,
+  ParsedMpesaAgent,
   ParsedMpesaReceived,
   ParsedBankTransfer,
   ParsedBankConfirmation,
   ParsedCardTransaction,
   ParsedFuliza,
   ParsedFulizaRepayment,
+  ParsedFulizaAutoRepayment,
   ParsedMshwariTransfer,
 } from '@/types';
 
@@ -44,9 +39,12 @@ export class SmsParserService {
    * Parse an SMS message and extract transaction data
    */
   parseMessage(body: string): ParseResult {
+    // Normalize body - handle newlines in ref codes
+    const normalizedBody = body.replace(/([A-Z0-9]{10})\s*\n\s*/g, '$1 ');
+
     // Try each pattern in order
     for (const { type, pattern, transactionType } of PATTERNS) {
-      const match = body.match(pattern);
+      const match = normalizedBody.match(pattern);
       if (match?.groups) {
         try {
           const parsed = this.extractData(type, match.groups, body);
@@ -83,7 +81,14 @@ export class SmsParserService {
       case 'mpesa_send':
         return this.parseMpesaSend(groups, rawBody);
       case 'mpesa_paybill':
+      case 'mpesa_paybill_alt':
         return this.parseMpesaPaybill(groups, rawBody);
+      case 'mpesa_till':
+        return this.parseMpesaTill(groups, rawBody);
+      case 'mpesa_airtime':
+        return this.parseMpesaAirtime(groups, rawBody);
+      case 'mpesa_agent':
+        return this.parseMpesaAgent(groups, rawBody);
       case 'mpesa_received':
         return this.parseMpesaReceived(groups, rawBody);
       case 'bank_transfer':
@@ -96,6 +101,8 @@ export class SmsParserService {
         return this.parseFuliza(groups, rawBody);
       case 'fuliza_repayment':
         return this.parseFulizaRepayment(groups, rawBody);
+      case 'fuliza_auto_repayment':
+        return this.parseFulizaAutoRepayment(groups, rawBody);
       case 'mshwari_transfer':
         return this.parseMshwariTransfer(groups, rawBody);
       default:
@@ -112,7 +119,7 @@ export class SmsParserService {
       refCode: groups.refCode,
       amount: parseAmountToCents(groups.amount),
       currency: 'KES',
-      recipient: groups.recipient.trim(),
+      recipient: groups.recipient.trim().replace(/\.$/, ''), // Remove trailing period
       phone: groups.phone,
       transactionDate: parseSmsDate(groups.date, groups.time),
       balance: groups.balance ? parseAmountToCents(groups.balance) : undefined,
@@ -135,6 +142,53 @@ export class SmsParserService {
       transactionDate: parseSmsDate(groups.date, groups.time),
       balance: groups.balance ? parseAmountToCents(groups.balance) : undefined,
       fee: groups.fee ? parseAmountToCents(groups.fee) : undefined,
+      rawBody,
+    };
+  }
+
+  private parseMpesaTill(
+    groups: Record<string, string>,
+    rawBody: string
+  ): ParsedMpesaTill {
+    return {
+      type: 'mpesa_till',
+      refCode: groups.refCode,
+      amount: parseAmountToCents(groups.amount),
+      currency: 'KES',
+      tillName: groups.tillName.trim(),
+      tillNumber: groups.tillNumber,
+      transactionDate: parseTillDate(groups.date, groups.time),
+      rawBody,
+    };
+  }
+
+  private parseMpesaAirtime(
+    groups: Record<string, string>,
+    rawBody: string
+  ): ParsedMpesaAirtime {
+    return {
+      type: 'mpesa_airtime',
+      refCode: groups.refCode,
+      amount: parseAmountToCents(groups.amount),
+      currency: 'KES',
+      transactionDate: parseSmsDate(groups.date, groups.time),
+      balance: groups.balance ? parseAmountToCents(groups.balance) : undefined,
+      rawBody,
+    };
+  }
+
+  private parseMpesaAgent(
+    groups: Record<string, string>,
+    rawBody: string
+  ): ParsedMpesaAgent {
+    return {
+      type: 'mpesa_agent',
+      refCode: groups.refCode,
+      amount: parseAmountToCents(groups.amount),
+      currency: 'KES',
+      agentName: groups.agentName.trim(),
+      transactionDate: parseSmsDate(groups.date, groups.time),
+      balance: groups.balance ? parseAmountToCents(groups.balance) : undefined,
       rawBody,
     };
   }
@@ -239,6 +293,24 @@ export class SmsParserService {
     };
   }
 
+  private parseFulizaAutoRepayment(
+    groups: Record<string, string>,
+    rawBody: string
+  ): ParsedFulizaAutoRepayment {
+    return {
+      type: 'fuliza_auto_repayment',
+      refCode: groups.refCode,
+      amount: parseAmountToCents(groups.amount),
+      currency: 'KES',
+      amountRepaid: parseAmountToCents(groups.amount),
+      paymentType: groups.paymentType.toLowerCase() as 'partially' | 'fully',
+      availableLimit: parseAmountToCents(groups.availableLimit),
+      balance: parseAmountToCents(groups.balance),
+      transactionDate: new Date(),
+      rawBody,
+    };
+  }
+
   private parseMshwariTransfer(
     groups: Record<string, string>,
     rawBody: string
@@ -281,6 +353,12 @@ export class SmsParserService {
         return parsed.recipient;
       case 'mpesa_paybill':
         return parsed.paybillName;
+      case 'mpesa_till':
+        return parsed.tillName;
+      case 'mpesa_airtime':
+        return 'Airtime';
+      case 'mpesa_agent':
+        return parsed.agentName;
       case 'mpesa_received':
         return parsed.sender;
       case 'bank_transfer':
@@ -292,6 +370,7 @@ export class SmsParserService {
       case 'fuliza':
         return 'Fuliza M-Pesa';
       case 'fuliza_repayment':
+      case 'fuliza_auto_repayment':
         return 'Fuliza M-Pesa';
       case 'mshwari_transfer':
         return 'M-Shwari';
