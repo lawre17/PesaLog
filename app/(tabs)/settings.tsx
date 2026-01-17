@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import { Card } from '@/components/ui/card';
+import { settingsService } from '@/services/settings.service';
 
 interface SettingsItemProps {
   title: string;
@@ -85,6 +86,23 @@ export default function SettingsScreen() {
           onPress: () => {
             // Will implement database reset
             Alert.alert('Data Cleared', 'All data has been deleted.');
+          },
+        },
+      ]
+    );
+  };
+
+  const handleResetOnboarding = () => {
+    Alert.alert(
+      'Reset Onboarding',
+      'This will reset the onboarding flow. You will be taken through the setup again.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reset',
+          onPress: async () => {
+            await settingsService.resetOnboarding();
+            router.replace('/onboarding' as never);
           },
         },
       ]
@@ -172,6 +190,12 @@ export default function SettingsScreen() {
             subtitle="Delete all stored data"
             onPress={handleClearData}
             destructive
+          />
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+          <SettingsItem
+            title="Reset Onboarding"
+            subtitle="Go through the onboarding flow again"
+            onPress={handleResetOnboarding}
           />
         </Card>
 

@@ -1,0 +1,430 @@
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Pressable,
+  Animated,
+  Platform,
+} from 'react-native';
+import { useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Colors } from '@/constants/theme';
+import { settingsService } from '@/services/settings.service';
+
+type ImportStatus = 'idle' | 'scanning' | 'complete';
+
+interface ImportStats {
+  totalFound: number;
+  mpesa: number;
+  bank: number;
+  card: number;
+  fuliza: number;
+}
+
+export default function ImportScreen() {
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme ?? 'light'];
+  const router = useRouter();
+
+  const [status, setStatus] = useState<ImportStatus>('idle');
+  const [stats, setStats] = useState<ImportStats>({
+    totalFound: 0,
+    mpesa: 0,
+    bank: 0,
+    card: 0,
+    fuliza: 0,
+  });
+  const [progress, setProgress] = useState(0);
+
+  const progressAnim = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  // Pulse animation for scanning
+  useEffect(() => {
+    if (status === 'scanning') {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.1,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    } else {
+      pulseAnim.setValue(1);
+    }
+  }, [status, pulseAnim]);
+
+  // Progress animation
+  useEffect(() => {
+    Animated.timing(progressAnim, {
+      toValue: progress,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+  }, [progress, progressAnim]);
+
+  const handleStartImport = async () => {
+    if (Platform.OS !== 'android') {
+      // Skip import on iOS since we can't read SMS
+      await completeOnboarding();
+      return;
+    }
+
+    setStatus('scanning');
+
+    // Simulate SMS scanning progress
+    // In production, this would use the SMS listener service
+    const steps = [
+      { progress: 20, stats: { totalFound: 12, mpesa: 8, bank: 2, card: 2, fuliza: 0 } },
+      { progress: 45, stats: { totalFound: 34, mpesa: 22, bank: 7, card: 4, fuliza: 1 } },
+      { progress: 70, stats: { totalFound: 67, mpesa: 45, bank: 12, card: 8, fuliza: 2 } },
+      { progress: 90, stats: { totalFound: 89, mpesa: 58, bank: 18, card: 10, fuliza: 3 } },
+      { progress: 100, stats: { totalFound: 103, mpesa: 67, bank: 21, card: 12, fuliza: 3 } },
+    ];
+
+    for (const step of steps) {
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      setProgress(step.progress);
+      setStats(step.stats);
+    }
+
+    setStatus('complete');
+  };
+
+  const handleSkip = async () => {
+    await completeOnboarding();
+  };
+
+  const handleFinish = async () => {
+    await completeOnboarding();
+  };
+
+  const completeOnboarding = async () => {
+    await settingsService.completeOnboarding();
+    router.replace('/(tabs)' as never);
+  };
+
+  const progressWidth = progressAnim.interpolate({
+    inputRange: [0, 100],
+    outputRange: ['0%', '100%'],
+  });
+
+  return (
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+    >
+      <View style={styles.content}>
+        <Text style={[styles.title, { color: colors.text }]}>
+          {status === 'idle'
+            ? 'Import History'
+            : status === 'scanning'
+            ? 'Scanning Messages...'
+            : 'Import Complete!'}
+        </Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+          {status === 'idle'
+            ? 'Import your existing financial SMS to get started with complete history'
+            : status === 'scanning'
+            ? 'Looking for M-Pesa, bank, and card transactions'
+            : 'Your transactions have been imported successfully'}
+        </Text>
+
+        {/* Scanning Animation */}
+        <View style={styles.animationContainer}>
+          <Animated.View
+            style={[
+              styles.scanCircle,
+              {
+                backgroundColor: colors.primary,
+                transform: [{ scale: pulseAnim }],
+              },
+            ]}
+          >
+            <Text style={styles.scanIcon}>
+              {status === 'idle' ? '📥' : status === 'scanning' ? '🔍' : '✅'}
+            </Text>
+          </Animated.View>
+
+          {status === 'scanning' && (
+            <View style={styles.progressContainer}>
+              <View
+                style={[
+                  styles.progressBar,
+                  { backgroundColor: colors.backgroundSecondary },
+                ]}
+              >
+                <Animated.View
+                  style={[
+                    styles.progressFill,
+                    { backgroundColor: colors.primary, width: progressWidth },
+                  ]}
+                />
+              </View>
+              <Text style={[styles.progressText, { color: colors.textSecondary }]}>
+                {progress}%
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* Stats */}
+        {(status === 'scanning' || status === 'complete') && (
+          <View style={[styles.statsContainer, { backgroundColor: colors.card }]}>
+            <Text style={[styles.statsTitle, { color: colors.text }]}>
+              Transactions Found
+            </Text>
+            <Text style={[styles.statsTotal, { color: colors.primary }]}>
+              {stats.totalFound}
+            </Text>
+
+            <View style={styles.statsGrid}>
+              <StatItem
+                icon="📱"
+                label="M-Pesa"
+                count={stats.mpesa}
+                colors={colors}
+              />
+              <StatItem
+                icon="🏦"
+                label="Bank"
+                count={stats.bank}
+                colors={colors}
+              />
+              <StatItem
+                icon="💳"
+                label="Card"
+                count={stats.card}
+                colors={colors}
+              />
+              <StatItem
+                icon="⚡"
+                label="Fuliza"
+                count={stats.fuliza}
+                colors={colors}
+              />
+            </View>
+          </View>
+        )}
+
+        {/* Info Note */}
+        {status === 'idle' && (
+          <View
+            style={[styles.infoNote, { backgroundColor: colors.backgroundSecondary }]}
+          >
+            <Text style={styles.infoIcon}>💡</Text>
+            <Text style={[styles.infoText, { color: colors.textSecondary }]}>
+              We&apos;ll scan your SMS inbox for financial transactions from the past 3
+              months. This may take a minute.
+            </Text>
+          </View>
+        )}
+
+        {status === 'complete' && (
+          <View
+            style={[styles.successNote, { backgroundColor: colors.backgroundSecondary }]}
+          >
+            <Text style={styles.infoIcon}>🎉</Text>
+            <Text style={[styles.infoText, { color: colors.textSecondary }]}>
+              Most transactions have been auto-categorized. You can review and
+              adjust categories anytime.
+            </Text>
+          </View>
+        )}
+      </View>
+
+      {/* Footer */}
+      <View style={styles.footer}>
+        {status === 'idle' && (
+          <>
+            <Pressable
+              style={[styles.button, { backgroundColor: colors.primary }]}
+              onPress={handleStartImport}
+            >
+              <Text style={styles.buttonText}>Start Import</Text>
+            </Pressable>
+            <Pressable style={styles.skipButton} onPress={handleSkip}>
+              <Text style={[styles.skipButtonText, { color: colors.textSecondary }]}>
+                Skip and start fresh
+              </Text>
+            </Pressable>
+          </>
+        )}
+
+        {status === 'complete' && (
+          <Pressable
+            style={[styles.button, { backgroundColor: colors.primary }]}
+            onPress={handleFinish}
+          >
+            <Text style={styles.buttonText}>Get Started</Text>
+          </Pressable>
+        )}
+      </View>
+    </SafeAreaView>
+  );
+}
+
+function StatItem({
+  icon,
+  label,
+  count,
+  colors,
+}: {
+  icon: string;
+  label: string;
+  count: number;
+  colors: typeof Colors.light;
+}) {
+  return (
+    <View style={styles.statItem}>
+      <Text style={styles.statIcon}>{icon}</Text>
+      <Text style={[styles.statCount, { color: colors.text }]}>{count}</Text>
+      <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+        {label}
+      </Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 24,
+    paddingTop: 40,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: 16,
+    marginTop: 8,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  animationContainer: {
+    alignItems: 'center',
+    marginTop: 40,
+  },
+  scanCircle: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scanIcon: {
+    fontSize: 48,
+  },
+  progressContainer: {
+    width: '100%',
+    marginTop: 24,
+    alignItems: 'center',
+  },
+  progressBar: {
+    width: '80%',
+    height: 8,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  progressText: {
+    marginTop: 8,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  statsContainer: {
+    marginTop: 32,
+    padding: 20,
+    borderRadius: 16,
+    alignItems: 'center',
+  },
+  statsTitle: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  statsTotal: {
+    fontSize: 48,
+    fontWeight: '700',
+    marginTop: 4,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    marginTop: 20,
+    gap: 16,
+  },
+  statItem: {
+    alignItems: 'center',
+    minWidth: 60,
+  },
+  statIcon: {
+    fontSize: 24,
+  },
+  statCount: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  statLabel: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  infoNote: {
+    flexDirection: 'row',
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 24,
+  },
+  successNote: {
+    flexDirection: 'row',
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 24,
+  },
+  infoIcon: {
+    fontSize: 20,
+    marginRight: 12,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  footer: {
+    padding: 24,
+    paddingBottom: 16,
+  },
+  button: {
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  buttonText: {
+    color: 'white',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  skipButton: {
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  skipButtonText: {
+    fontSize: 14,
+  },
+});

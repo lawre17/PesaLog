@@ -2,12 +2,14 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, View, Text, StyleSheet } from 'react-native';
+import { useState, useEffect } from 'react';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { DatabaseProvider, useDatabaseReady } from '@/contexts/database.context';
 import { NotificationProvider } from '@/contexts/notification.context';
 import { Colors } from '@/constants/theme';
+import { settingsService } from '@/services/settings.service';
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -44,9 +46,29 @@ function ErrorScreen({ error }: { error: Error }) {
 }
 
 function RootNavigator() {
-  const { isLoading, error } = useDatabaseReady();
+  const { isLoading: dbLoading, error } = useDatabaseReady();
+  const [isCheckingOnboarding, setIsCheckingOnboarding] = useState(true);
+  const [initialRoute, setInitialRoute] = useState<string>('(tabs)');
 
-  if (isLoading) {
+  useEffect(() => {
+    async function checkOnboarding() {
+      try {
+        const completed = await settingsService.isOnboardingCompleted();
+        setInitialRoute(completed ? '(tabs)' : 'onboarding');
+      } catch (err) {
+        console.error('Failed to check onboarding status:', err);
+        setInitialRoute('(tabs)');
+      } finally {
+        setIsCheckingOnboarding(false);
+      }
+    }
+
+    if (!dbLoading && !error) {
+      checkOnboarding();
+    }
+  }, [dbLoading, error]);
+
+  if (dbLoading || isCheckingOnboarding) {
     return <LoadingScreen />;
   }
 
@@ -55,7 +77,8 @@ function RootNavigator() {
   }
 
   return (
-    <Stack>
+    <Stack initialRouteName={initialRoute}>
+      <Stack.Screen name="onboarding" options={{ headerShown: false }} />
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
       <Stack.Screen
