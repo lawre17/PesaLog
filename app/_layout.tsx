@@ -43,7 +43,7 @@ function ErrorScreen({ error }: { error: Error }) {
 }
 
 function RootNavigator() {
-  const { isReady, isLoading, error } = useDatabaseReady();
+  const { isLoading, error } = useDatabaseReady();
 
   if (isLoading) {
     return <LoadingScreen />;

@@ -1,98 +1,192 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import React from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  RefreshControl,
+  Pressable,
+} from 'react-native';
+import { useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Colors } from '@/constants/theme';
+import { BalanceCard } from '@/components/dashboard/balance-card';
+import { SpendingSummary } from '@/components/dashboard/spending-summary';
+import { DebtWidget } from '@/components/dashboard/debt-widget';
+import { TransactionCard } from '@/components/transaction/transaction-card';
+import {
+  useRecentTransactions,
+  usePeriodStats,
+  useLatestBalance,
+} from '@/hooks/use-transactions';
+import { useDebtSummary } from '@/hooks/use-debts';
 
-export default function HomeScreen() {
+export default function DashboardScreen() {
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme ?? 'light'];
+  const router = useRouter();
+
+  const { balance } = useLatestBalance();
+  const { stats, refetch: refetchStats } = usePeriodStats('month');
+  const { summary: debtSummary, refetch: refetchDebt } = useDebtSummary();
+  const { data: transactions, isLoading: txnLoading, refetch: refetchTxn } = useRecentTransactions(5);
+
+  const [refreshing, setRefreshing] = React.useState(false);
+
+  const onRefresh = React.useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([refetchStats(), refetchDebt(), refetchTxn()]);
+    setRefreshing(false);
+  }, [refetchStats, refetchDebt, refetchTxn]);
+
+  const weeklyChange = stats ? stats.netFlow : undefined;
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={['top']}
+    >
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={[styles.title, { color: colors.text }]}>PesaLog</Text>
+          <Pressable
+            onPress={() => router.push('/settings' as never)}
+            hitSlop={8}
+          >
+            <Text style={[styles.settingsIcon, { color: colors.icon }]}>
+              {'\u2699\uFE0F'}
+            </Text>
+          </Pressable>
+        </View>
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+        {/* Balance Card */}
+        <BalanceCard
+          balance={balance || 0}
+          change={weeklyChange}
+          changeLabel="this month"
+        />
+
+        {/* Spending Summary */}
+        <SpendingSummary
+          income={stats?.totalIncome || 0}
+          expenses={stats?.totalExpenses || 0}
+          period="this month"
+        />
+
+        {/* Debt Widget */}
+        {debtSummary && (
+          <DebtWidget
+            summary={debtSummary}
+            onPress={() => router.push('/debts' as never)}
+          />
+        )}
+
+        {/* Recent Transactions */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              Recent Transactions
+            </Text>
+            <Pressable onPress={() => router.push('/transactions' as never)}>
+              <Text style={[styles.seeAll, { color: colors.primary }]}>
+                See All
+              </Text>
+            </Pressable>
+          </View>
+
+          {txnLoading ? (
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+              Loading...
+            </Text>
+          ) : transactions.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                No transactions yet
+              </Text>
+              <Text
+                style={[styles.emptySubtext, { color: colors.textSecondary }]}
+              >
+                Financial SMS messages will appear here
+              </Text>
+            </View>
+          ) : (
+            transactions.map((txn) => (
+              <TransactionCard
+                key={txn.id}
+                transaction={txn}
+                categoryName={txn.category?.name}
+                categoryColor={txn.category?.color}
+                onPress={() =>
+                  router.push(`/transaction/${txn.id}` as never)
+                }
+              />
+            ))
+          )}
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  container: {
+    flex: 1,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  content: {
+    padding: 16,
+    paddingBottom: 32,
+  },
+  header: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 8,
+    marginBottom: 16,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  title: {
+    fontSize: 28,
+    fontWeight: '700',
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  settingsIcon: {
+    fontSize: 24,
+  },
+  section: {
+    marginTop: 24,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  seeAll: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 32,
+  },
+  emptyText: {
+    fontSize: 16,
+  },
+  emptySubtext: {
+    fontSize: 14,
+    marginTop: 4,
   },
 });
