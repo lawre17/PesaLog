@@ -71,13 +71,8 @@ export default function ClassifyTransactionScreen() {
   // Handle category selection
   const handleSelectCategory = (categoryId: number) => {
     setSelectedCategory(categoryId);
-    // Reset debt type if not selecting a transfer category
-    const category = [...grouped.expense, ...grouped.transfer, ...grouped.income].find(
-      (c) => c.id === categoryId
-    );
-    if (category?.name !== 'Lending' && category?.name !== 'Borrowing') {
-      setDebtType('none');
-    }
+    // Reset debt type when selecting a regular category
+    setDebtType('none');
   };
 
   // Handle marking as lending (money you gave to someone)
@@ -372,45 +367,41 @@ export default function ClassifyTransactionScreen() {
           </Card>
         )}
 
-        {/* Category Selection */}
-        {debtType === 'none' && (
+        {/* Category Selection - Always show for income, show for expense when not lending */}
+        {isIncome && (
           <>
-            {isIncome && (
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              {debtType === 'borrowing' ? 'Or categorize as income:' : 'Income Categories'}
+            </Text>
+            <View style={styles.categoryGrid}>
+              {grouped.income.map((cat) => (
+                <CategoryButton key={cat.id} category={cat} />
+              ))}
+            </View>
+          </>
+        )}
+
+        {isExpense && debtType !== 'lending' && (
+          <>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              Expense Categories
+            </Text>
+            <View style={styles.categoryGrid}>
+              {grouped.expense.map((cat) => (
+                <CategoryButton key={cat.id} category={cat} />
+              ))}
+            </View>
+
+            {isPerson && (
               <>
                 <Text style={[styles.sectionTitle, { color: colors.text }]}>
-                  Income Categories
+                  Transfers
                 </Text>
                 <View style={styles.categoryGrid}>
-                  {grouped.income.map((cat) => (
+                  {grouped.transfer.map((cat) => (
                     <CategoryButton key={cat.id} category={cat} />
                   ))}
                 </View>
-              </>
-            )}
-
-            {isExpense && (
-              <>
-                <Text style={[styles.sectionTitle, { color: colors.text }]}>
-                  Expense Categories
-                </Text>
-                <View style={styles.categoryGrid}>
-                  {grouped.expense.map((cat) => (
-                    <CategoryButton key={cat.id} category={cat} />
-                  ))}
-                </View>
-
-                {isPerson && (
-                  <>
-                    <Text style={[styles.sectionTitle, { color: colors.text }]}>
-                      Transfers
-                    </Text>
-                    <View style={styles.categoryGrid}>
-                      {grouped.transfer.map((cat) => (
-                        <CategoryButton key={cat.id} category={cat} />
-                      ))}
-                    </View>
-                  </>
-                )}
               </>
             )}
           </>

@@ -101,6 +101,22 @@ function RootNavigator() {
         name="debts/add"
         options={{ presentation: 'modal', title: 'Add Debt' }}
       />
+      <Stack.Screen
+        name="categories/index"
+        options={{ presentation: 'card', title: 'Categories' }}
+      />
+      <Stack.Screen
+        name="categories/add"
+        options={{ presentation: 'modal', title: 'New Category' }}
+      />
+      <Stack.Screen
+        name="merchants/index"
+        options={{ presentation: 'card', title: 'Merchant Mappings' }}
+      />
+      <Stack.Screen
+        name="import/index"
+        options={{ presentation: 'card', title: 'Import SMS' }}
+      />
     </Stack>
   );
 }

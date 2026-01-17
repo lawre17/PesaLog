@@ -126,15 +126,9 @@ export default function SettingsScreen() {
         </Text>
         <Card variant="outlined" style={styles.section}>
           <SettingsItem
-            title="SMS Permissions"
-            subtitle="Manage SMS access for auto-tracking"
-            onPress={() => {}}
-          />
-          <View style={[styles.divider, { backgroundColor: colors.border }]} />
-          <SettingsItem
             title="Import Historical SMS"
             subtitle="Scan existing SMS for transactions"
-            onPress={() => {}}
+            onPress={() => router.push('/import' as never)}
           />
         </Card>
 
@@ -152,7 +146,7 @@ export default function SettingsScreen() {
           <SettingsItem
             title="Merchant Mappings"
             subtitle="View learned merchant-category mappings"
-            onPress={() => {}}
+            onPress={() => router.push('/merchants' as never)}
           />
         </Card>
 
