@@ -16,6 +16,22 @@ import { settingsService } from '@/services/settings.service';
 
 type ImportStatus = 'idle' | 'scanning' | 'complete';
 
+type ImportPeriod = '1month' | '3months' | '6months' | '1year' | 'all';
+
+interface PeriodOption {
+  value: ImportPeriod;
+  label: string;
+  description: string;
+}
+
+const PERIOD_OPTIONS: PeriodOption[] = [
+  { value: '1month', label: '1 Month', description: 'Last 30 days' },
+  { value: '3months', label: '3 Months', description: 'Last 90 days' },
+  { value: '6months', label: '6 Months', description: 'Last 180 days' },
+  { value: '1year', label: '1 Year', description: 'Last 365 days' },
+  { value: 'all', label: 'All Time', description: 'All available SMS' },
+];
+
 interface ImportStats {
   totalFound: number;
   mpesa: number;
@@ -30,6 +46,7 @@ export default function ImportScreen() {
   const router = useRouter();
 
   const [status, setStatus] = useState<ImportStatus>('idle');
+  const [selectedPeriod, setSelectedPeriod] = useState<ImportPeriod>('3months');
   const [stats, setStats] = useState<ImportStats>({
     totalFound: 0,
     mpesa: 0,
@@ -216,15 +233,49 @@ export default function ImportScreen() {
           </View>
         )}
 
-        {/* Info Note */}
+        {/* Period Selector */}
         {status === 'idle' && (
-          <View
-            style={[styles.infoNote, { backgroundColor: colors.backgroundSecondary }]}
-          >
-            <Text style={styles.infoIcon}>💡</Text>
-            <Text style={[styles.infoText, { color: colors.textSecondary }]}>
-              We&apos;ll scan your SMS inbox for financial transactions from the past 3
-              months. This may take a minute.
+          <View style={styles.periodSection}>
+            <Text style={[styles.periodTitle, { color: colors.text }]}>
+              Import Period
+            </Text>
+            <View style={styles.periodOptions}>
+              {PERIOD_OPTIONS.map((option) => (
+                <Pressable
+                  key={option.value}
+                  style={[
+                    styles.periodOption,
+                    {
+                      backgroundColor:
+                        selectedPeriod === option.value
+                          ? colors.primary
+                          : colors.backgroundSecondary,
+                      borderColor:
+                        selectedPeriod === option.value
+                          ? colors.primary
+                          : colors.border,
+                    },
+                  ]}
+                  onPress={() => setSelectedPeriod(option.value)}
+                >
+                  <Text
+                    style={[
+                      styles.periodLabel,
+                      {
+                        color:
+                          selectedPeriod === option.value
+                            ? 'white'
+                            : colors.text,
+                      },
+                    ]}
+                  >
+                    {option.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            <Text style={[styles.periodDescription, { color: colors.textSecondary }]}>
+              {PERIOD_OPTIONS.find((o) => o.value === selectedPeriod)?.description}
             </Text>
           </View>
         )}
@@ -385,11 +436,35 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
   },
-  infoNote: {
+  periodSection: {
+    marginTop: 32,
+  },
+  periodTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  periodOptions: {
     flexDirection: 'row',
-    padding: 16,
-    borderRadius: 12,
-    marginTop: 24,
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  periodOption: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  periodLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  periodDescription: {
+    fontSize: 13,
+    textAlign: 'center',
+    marginTop: 12,
   },
   successNote: {
     flexDirection: 'row',
