@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,8 @@ import {
   Pressable,
   Alert,
   Platform,
+  PermissionsAndroid,
+  Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -25,6 +27,21 @@ export default function PermissionsScreen() {
   const [notificationPermission, setNotificationPermission] =
     useState<PermissionStatus>('pending');
 
+  // Check existing SMS permission on mount
+  useEffect(() => {
+    const checkExistingPermission = async () => {
+      if (Platform.OS === 'android') {
+        const hasPermission = await PermissionsAndroid.check(
+          PermissionsAndroid.PERMISSIONS.READ_SMS
+        );
+        if (hasPermission) {
+          setSmsPermission('granted');
+        }
+      }
+    };
+    checkExistingPermission();
+  }, []);
+
   // Request SMS permission (Android only)
   const requestSmsPermission = async () => {
     if (Platform.OS !== 'android') {
@@ -38,23 +55,51 @@ export default function PermissionsScreen() {
       return;
     }
 
-    // Note: Actual SMS permission requires native module
-    // For now, we'll show instructions
-    Alert.alert(
-      'SMS Permission',
-      'PesaLog needs access to read your SMS messages to automatically track financial transactions.\n\nThis permission will be requested when the app starts tracking.',
-      [
+    try {
+      // Check if already granted
+      const hasPermission = await PermissionsAndroid.check(
+        PermissionsAndroid.PERMISSIONS.READ_SMS
+      );
+
+      if (hasPermission) {
+        setSmsPermission('granted');
+        return;
+      }
+
+      // Request the permission
+      const result = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.READ_SMS,
         {
-          text: 'Grant Later',
-          style: 'cancel',
-          onPress: () => setSmsPermission('denied'),
-        },
-        {
-          text: 'OK',
-          onPress: () => setSmsPermission('granted'),
-        },
-      ]
-    );
+          title: 'SMS Permission Required',
+          message:
+            'PesaLog needs access to read your SMS messages to automatically track M-Pesa, bank, and card transactions.',
+          buttonPositive: 'Allow',
+          buttonNegative: 'Deny',
+        }
+      );
+
+      if (result === PermissionsAndroid.RESULTS.GRANTED) {
+        setSmsPermission('granted');
+      } else if (result === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
+        // User permanently denied, guide them to settings
+        Alert.alert(
+          'Permission Required',
+          'SMS permission was permanently denied. Please enable it in Settings to import transactions.',
+          [
+            { text: 'Cancel', style: 'cancel', onPress: () => setSmsPermission('denied') },
+            { text: 'Open Settings', onPress: () => {
+              Linking.openSettings();
+              setSmsPermission('denied');
+            }},
+          ]
+        );
+      } else {
+        setSmsPermission('denied');
+      }
+    } catch (err) {
+      console.error('SMS permission request error:', err);
+      setSmsPermission('denied');
+    }
   };
 
   // Request notification permission

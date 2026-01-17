@@ -144,7 +144,7 @@ export default function TransactionDetailScreen() {
               {sign}
               {formatCurrency(transaction.amount, transaction.currency || 'KES')}
             </Text>
-            {transaction.fee && transaction.fee > 0 && (
+            {transaction.fee != null && transaction.fee > 0 && (
               <Text style={[styles.fee, { color: colors.textSecondary }]}>
                 Transaction fee: {formatCurrency(transaction.fee)}
               </Text>

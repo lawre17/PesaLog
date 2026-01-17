@@ -63,7 +63,7 @@ export function TransactionCard({
           {sign}
           {formatCurrency(transaction.amount, transaction.currency || 'KES')}
         </Text>
-        {transaction.fee && transaction.fee > 0 && (
+        {transaction.fee != null && transaction.fee > 0 && (
           <Text style={[styles.fee, { color: colors.textSecondary }]}>
             Fee: {formatCurrency(transaction.fee)}
           </Text>

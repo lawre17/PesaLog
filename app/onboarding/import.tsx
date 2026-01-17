@@ -6,6 +6,7 @@ import {
   Pressable,
   Animated,
   Platform,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,10 +14,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import { settingsService } from '@/services/settings.service';
+import { smsReader, SmsReadResult, ImportPeriod } from '@/services/sms/sms-reader.service';
 
 type ImportStatus = 'idle' | 'scanning' | 'complete';
-
-type ImportPeriod = '1month' | '3months' | '6months' | '1year' | 'all';
 
 interface PeriodOption {
   value: ImportPeriod;
@@ -93,29 +93,55 @@ export default function ImportScreen() {
   const handleStartImport = async () => {
     if (Platform.OS !== 'android') {
       // Skip import on iOS since we can't read SMS
-      await completeOnboarding();
+      Alert.alert(
+        'Not Available',
+        'SMS import is only available on Android. You can manually add transactions.',
+        [{ text: 'OK', onPress: completeOnboarding }]
+      );
       return;
     }
 
     setStatus('scanning');
+    setProgress(0);
+    setStats({ totalFound: 0, mpesa: 0, bank: 0, card: 0, fuliza: 0 });
 
-    // Simulate SMS scanning progress
-    // In production, this would use the SMS listener service
-    const steps = [
-      { progress: 20, stats: { totalFound: 12, mpesa: 8, bank: 2, card: 2, fuliza: 0 } },
-      { progress: 45, stats: { totalFound: 34, mpesa: 22, bank: 7, card: 4, fuliza: 1 } },
-      { progress: 70, stats: { totalFound: 67, mpesa: 45, bank: 12, card: 8, fuliza: 2 } },
-      { progress: 90, stats: { totalFound: 89, mpesa: 58, bank: 18, card: 10, fuliza: 3 } },
-      { progress: 100, stats: { totalFound: 103, mpesa: 67, bank: 21, card: 12, fuliza: 3 } },
-    ];
+    try {
+      const result = await smsReader.readAllSms(
+        selectedPeriod,
+        (progressPercent, partialResult) => {
+          setProgress(progressPercent);
+          if (partialResult.stats) {
+            setStats({
+              totalFound: partialResult.processed || 0,
+              mpesa: partialResult.stats.mpesa || 0,
+              bank: partialResult.stats.bank || 0,
+              card: partialResult.stats.card || 0,
+              fuliza: partialResult.stats.fuliza || 0,
+            });
+          }
+        }
+      );
 
-    for (const step of steps) {
-      await new Promise((resolve) => setTimeout(resolve, 800));
-      setProgress(step.progress);
-      setStats(step.stats);
+      setStats({
+        totalFound: result.processed,
+        mpesa: result.stats.mpesa,
+        bank: result.stats.bank,
+        card: result.stats.card,
+        fuliza: result.stats.fuliza,
+      });
+      setStatus('complete');
+    } catch (err) {
+      console.error('SMS import failed:', err);
+      Alert.alert(
+        'Import Failed',
+        err instanceof Error ? err.message : 'Failed to read SMS messages. Please check permissions.',
+        [
+          { text: 'Skip', onPress: completeOnboarding },
+          { text: 'Retry', onPress: handleStartImport },
+        ]
+      );
+      setStatus('idle');
     }
-
-    setStatus('complete');
   };
 
   const handleSkip = async () => {

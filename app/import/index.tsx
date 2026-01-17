@@ -15,10 +15,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
 import { Card } from '@/components/ui/card';
+import { smsReader, ImportPeriod } from '@/services/sms/sms-reader.service';
 
 type ImportStatus = 'idle' | 'scanning' | 'complete' | 'error';
-
-type ImportPeriod = '1month' | '3months' | '6months' | '1year' | 'all';
 
 interface PeriodOption {
   value: ImportPeriod;
@@ -109,6 +108,7 @@ export default function ImportScreen() {
 
     setStatus('scanning');
     setProgress(0);
+    setErrorMessage('');
     setStats({
       totalFound: 0,
       mpesa: 0,
@@ -120,28 +120,38 @@ export default function ImportScreen() {
     });
 
     try {
-      // Simulate SMS scanning progress
-      // In production, this would use the SMS listener service
-      const steps = [
-        { progress: 15, stats: { totalFound: 25, mpesa: 18, bank: 4, card: 2, fuliza: 1, newTransactions: 20, duplicates: 5 } },
-        { progress: 35, stats: { totalFound: 58, mpesa: 42, bank: 10, card: 4, fuliza: 2, newTransactions: 45, duplicates: 13 } },
-        { progress: 55, stats: { totalFound: 97, mpesa: 68, bank: 18, card: 8, fuliza: 3, newTransactions: 72, duplicates: 25 } },
-        { progress: 75, stats: { totalFound: 134, mpesa: 95, bank: 24, card: 11, fuliza: 4, newTransactions: 98, duplicates: 36 } },
-        { progress: 90, stats: { totalFound: 156, mpesa: 112, bank: 28, card: 12, fuliza: 4, newTransactions: 112, duplicates: 44 } },
-        { progress: 100, stats: { totalFound: 168, mpesa: 121, bank: 30, card: 13, fuliza: 4, newTransactions: 120, duplicates: 48 } },
-      ];
+      const result = await smsReader.readAllSms(
+        selectedPeriod,
+        (progressPercent, partialResult) => {
+          setProgress(progressPercent);
+          if (partialResult.stats) {
+            setStats({
+              totalFound: partialResult.financialSms || 0,
+              mpesa: partialResult.stats.mpesa || 0,
+              bank: partialResult.stats.bank || 0,
+              card: partialResult.stats.card || 0,
+              fuliza: partialResult.stats.fuliza || 0,
+              newTransactions: partialResult.processed || 0,
+              duplicates: partialResult.duplicates || 0,
+            });
+          }
+        }
+      );
 
-      for (const step of steps) {
-        await new Promise((resolve) => setTimeout(resolve, 600));
-        setProgress(step.progress);
-        setStats(step.stats);
-      }
-
+      setStats({
+        totalFound: result.financialSms,
+        mpesa: result.stats.mpesa,
+        bank: result.stats.bank,
+        card: result.stats.card,
+        fuliza: result.stats.fuliza,
+        newTransactions: result.processed,
+        duplicates: result.duplicates,
+      });
       setStatus('complete');
     } catch (err) {
       console.error('Import failed:', err);
       setStatus('error');
-      setErrorMessage(err instanceof Error ? err.message : 'Unknown error occurred');
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to read SMS messages');
     }
   };
 
