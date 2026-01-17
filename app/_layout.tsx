@@ -6,6 +6,7 @@ import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { DatabaseProvider, useDatabaseReady } from '@/contexts/database.context';
+import { NotificationProvider } from '@/contexts/notification.context';
 import { Colors } from '@/constants/theme';
 
 export const unstable_settings = {
@@ -57,6 +58,22 @@ function RootNavigator() {
     <Stack>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+      <Stack.Screen
+        name="transaction/[id]"
+        options={{ presentation: 'card', title: 'Transaction' }}
+      />
+      <Stack.Screen
+        name="transaction/classify/[id]"
+        options={{ presentation: 'modal', title: 'Classify Transaction' }}
+      />
+      <Stack.Screen
+        name="debts/index"
+        options={{ presentation: 'card', title: 'Debts' }}
+      />
+      <Stack.Screen
+        name="debts/[id]"
+        options={{ presentation: 'card', title: 'Debt Details' }}
+      />
     </Stack>
   );
 }
@@ -67,8 +84,10 @@ export default function RootLayout() {
   return (
     <DatabaseProvider>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <RootNavigator />
-        <StatusBar style="auto" />
+        <NotificationProvider>
+          <RootNavigator />
+          <StatusBar style="auto" />
+        </NotificationProvider>
       </ThemeProvider>
     </DatabaseProvider>
   );
