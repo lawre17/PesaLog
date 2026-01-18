@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Image } from 'expo-image';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { Colors } from '@/constants/theme';
@@ -17,9 +18,11 @@ export default function WelcomeScreen() {
     >
       <View style={styles.content}>
         {/* Logo/Icon Area */}
-        <View style={[styles.logoContainer, { backgroundColor: colors.primary }]}>
-          <Text style={styles.logoText}>P</Text>
-        </View>
+        <Image
+          source={require('@/assets/images/icon.png')}
+          style={styles.logo}
+          contentFit="contain"
+        />
 
         {/* Welcome Text */}
         <Text style={[styles.title, { color: colors.text }]}>
@@ -105,18 +108,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 40,
   },
-  logoContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
+  logo: {
+    width: 120,
+    height: 120,
     marginBottom: 24,
-  },
-  logoText: {
-    fontSize: 48,
-    fontWeight: '700',
-    color: 'white',
   },
   title: {
     fontSize: 28,

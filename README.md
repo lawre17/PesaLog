@@ -1,50 +1,182 @@
-# Welcome to your Expo app 👋
+# PesaLog
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+<p align="center">
+  <img src="assets/images/icon.png" alt="PesaLog Logo" width="120" height="120">
+</p>
 
-## Get started
+<p align="center">
+  <strong>Personal Finance Tracker for Mobile Money Users</strong>
+</p>
 
-1. Install dependencies
+<p align="center">
+  <a href="#features">Features</a> •
+  <a href="#tech-stack">Tech Stack</a> •
+  <a href="#getting-started">Getting Started</a> •
+  <a href="#project-structure">Project Structure</a> •
+  <a href="#contributing">Contributing</a>
+</p>
 
+---
+
+PesaLog is an open-source Android app that automatically tracks your income, expenses, and debts by parsing financial SMS messages from M-Pesa, banks, and card transactions. All data is stored locally on your device using SQLite — your financial data never leaves your phone.
+
+## Features
+
+- **Automatic SMS Parsing** — Reads and parses M-Pesa, bank, and card transaction messages
+- **Transaction Categorization** — Smart auto-classification with learning capabilities
+- **Expense Tracking** — Monitor your spending patterns over time
+- **Income Tracking** — Keep track of money received
+- **Debt Management** — Track money you owe and money owed to you
+- **Merchant Recognition** — Identifies and remembers merchants from your transactions
+- **Background Sync** — Automatically captures new transactions in the background
+- **Local-First** — All data stored securely on your device with SQLite
+- **Dark Mode** — Supports light and dark themes
+
+## Tech Stack
+
+| Technology | Purpose |
+|------------|---------|
+| [Expo SDK 54](https://expo.dev) | React Native framework with New Architecture |
+| [React Native 0.81](https://reactnative.dev) | Cross-platform mobile development |
+| [React 19](https://react.dev) | UI library |
+| [TypeScript](https://www.typescriptlang.org) | Type-safe JavaScript |
+| [Expo Router v6](https://docs.expo.dev/router/introduction/) | File-based routing with typed routes |
+| [Drizzle ORM](https://orm.drizzle.team) | TypeScript ORM for SQLite |
+| [expo-sqlite](https://docs.expo.dev/versions/latest/sdk/sqlite/) | Local SQLite database |
+| [React Navigation 7](https://reactnavigation.org) | Navigation library |
+| [Reanimated](https://docs.swmansion.com/react-native-reanimated/) | Animations |
+
+## Getting Started
+
+### Prerequisites
+
+- [Node.js](https://nodejs.org) (v18 or higher)
+- [npm](https://www.npmjs.com) or [yarn](https://yarnpkg.com)
+- [Android Studio](https://developer.android.com/studio) (for Android development)
+- [Expo CLI](https://docs.expo.dev/get-started/installation/)
+
+### Installation
+
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/lawlens11/PesaLog.git
+   cd PesaLog
+   ```
+
+2. **Install dependencies**
    ```bash
    npm install
    ```
 
-2. Start the app
-
+3. **Start the development server**
    ```bash
-   npx expo start
+   npm start
    ```
 
-In the output, you'll find options to open the app in a
+4. **Run on Android**
+   ```bash
+   npm run android
+   ```
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+### Available Scripts
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+| Command | Description |
+|---------|-------------|
+| `npm start` | Start Expo dev server |
+| `npm run android` | Build and run on Android |
+| `npm run ios` | Build and run on iOS |
+| `npm run web` | Start web version |
+| `npm run lint` | Run ESLint |
 
-## Get a fresh project
+## Project Structure
 
-When you're ready, run:
-
-```bash
-npm run reset-project
+```
+PesaLog/
+├── app/                    # Expo Router screens
+│   ├── (tabs)/            # Tab-based navigation
+│   ├── categories/        # Category management
+│   ├── debts/             # Debt tracking
+│   ├── import/            # SMS import flow
+│   ├── merchants/         # Merchant management
+│   ├── onboarding/        # First-time setup
+│   ├── transaction/       # Transaction details
+│   └── _layout.tsx        # Root layout
+├── components/            # Reusable UI components
+├── constants/             # Theme, colors, fonts
+├── contexts/              # React contexts
+├── db/                    # Database schema & migrations
+│   ├── schema.ts          # Drizzle ORM schema
+│   ├── migrations/        # Database migrations
+│   └── seed/              # Seed data
+├── hooks/                 # Custom React hooks
+├── services/              # Business logic
+│   ├── sms/              # SMS parsing & processing
+│   ├── debt.service.ts   # Debt management
+│   ├── notification.service.ts
+│   └── ...
+├── types/                 # TypeScript type definitions
+├── utils/                 # Utility functions
+└── plugins/               # Expo config plugins
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## Contributing
 
-## Learn more
+Contributions are welcome! Here's how you can help:
 
-To learn more about developing your project with Expo, look at the following resources:
+### Reporting Bugs
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+If you find a bug, please open an issue with:
+- A clear description of the problem
+- Steps to reproduce
+- Expected vs actual behavior
+- Device/OS information
 
-## Join the community
+### Suggesting Features
 
-Join our community of developers creating universal apps.
+Have an idea? Open an issue with the `enhancement` label describing:
+- The problem you're trying to solve
+- Your proposed solution
+- Any alternatives you've considered
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+### Pull Requests
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes
+4. Run linting (`npm run lint`)
+5. Commit your changes (`git commit -m 'Add amazing feature'`)
+6. Push to the branch (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
+
+### Development Guidelines
+
+- Follow the existing code style
+- Use TypeScript for all new code
+- Add types for all function parameters and return values
+- Keep components small and focused
+- Use meaningful commit messages
+
+## Permissions
+
+PesaLog requires the following Android permissions:
+- **READ_SMS** — To read financial transaction messages
+- **RECEIVE_SMS** — To capture new transactions in real-time
+
+All SMS data is processed locally and never sent to any server.
+
+## License
+
+This project is open source and available under the [MIT License](LICENSE).
+
+## Author
+
+**Lawrence Njoroge**
+
+- GitHub: [@lawlens11](https://github.com/lawlens11)
+- X: [@lawlens11](https://x.com/lawlens11)
+
+---
+
+<p align="center">
+  Made with ❤️ in Kenya
+</p>
