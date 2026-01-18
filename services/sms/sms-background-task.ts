@@ -4,11 +4,11 @@
  */
 
 import * as TaskManager from 'expo-task-manager';
-import * as BackgroundFetch from 'expo-background-fetch';
+import * as BackgroundTask from 'expo-background-task';
 import { Platform } from 'react-native';
 import { smsPolling } from './sms-polling.service';
 
-export const SMS_BACKGROUND_TASK = 'SMS_BACKGROUND_FETCH_TASK';
+export const SMS_BACKGROUND_TASK = 'SMS_BACKGROUND_TASK';
 
 /**
  * Define the background task
@@ -16,7 +16,7 @@ export const SMS_BACKGROUND_TASK = 'SMS_BACKGROUND_FETCH_TASK';
  */
 TaskManager.defineTask(SMS_BACKGROUND_TASK, async () => {
   if (Platform.OS !== 'android') {
-    return BackgroundFetch.BackgroundFetchResult.NoData;
+    return BackgroundTask.BackgroundTaskResult.NoData;
   }
 
   try {
@@ -25,18 +25,18 @@ TaskManager.defineTask(SMS_BACKGROUND_TASK, async () => {
 
     if (result.processed > 0) {
       console.log(`[BackgroundTask] Processed ${result.processed} new transactions`);
-      return BackgroundFetch.BackgroundFetchResult.NewData;
+      return BackgroundTask.BackgroundTaskResult.NewData;
     }
 
-    return BackgroundFetch.BackgroundFetchResult.NoData;
+    return BackgroundTask.BackgroundTaskResult.NoData;
   } catch (error) {
     console.error('[BackgroundTask] Error:', error);
-    return BackgroundFetch.BackgroundFetchResult.Failed;
+    return BackgroundTask.BackgroundTaskResult.Failed;
   }
 });
 
 /**
- * Register the background fetch task
+ * Register the background task
  */
 export async function registerBackgroundFetch(): Promise<boolean> {
   if (Platform.OS !== 'android') {
@@ -51,10 +51,8 @@ export async function registerBackgroundFetch(): Promise<boolean> {
       return true;
     }
 
-    await BackgroundFetch.registerTaskAsync(SMS_BACKGROUND_TASK, {
+    await BackgroundTask.registerTaskAsync(SMS_BACKGROUND_TASK, {
       minimumInterval: 15 * 60, // 15 minutes (minimum on Android)
-      stopOnTerminate: false, // Continue after app is terminated
-      startOnBoot: true, // Start on device boot
     });
 
     console.log('[BackgroundTask] Registered successfully');
@@ -66,11 +64,11 @@ export async function registerBackgroundFetch(): Promise<boolean> {
 }
 
 /**
- * Unregister the background fetch task
+ * Unregister the background task
  */
 export async function unregisterBackgroundFetch(): Promise<void> {
   try {
-    await BackgroundFetch.unregisterTaskAsync(SMS_BACKGROUND_TASK);
+    await BackgroundTask.unregisterTaskAsync(SMS_BACKGROUND_TASK);
     console.log('[BackgroundTask] Unregistered');
   } catch (error) {
     console.error('[BackgroundTask] Unregister failed:', error);
@@ -78,10 +76,10 @@ export async function unregisterBackgroundFetch(): Promise<void> {
 }
 
 /**
- * Check background fetch status
+ * Check background task status
  */
-export async function getBackgroundFetchStatus(): Promise<BackgroundFetch.BackgroundFetchStatus> {
-  return await BackgroundFetch.getStatusAsync();
+export async function getBackgroundFetchStatus(): Promise<BackgroundTask.BackgroundTaskStatus> {
+  return await BackgroundTask.getStatusAsync();
 }
 
 /**
