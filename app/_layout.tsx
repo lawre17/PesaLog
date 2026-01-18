@@ -10,6 +10,8 @@ import { DatabaseProvider, useDatabaseReady } from '@/contexts/database.context'
 import { NotificationProvider } from '@/contexts/notification.context';
 import { Colors } from '@/constants/theme';
 import { settingsService } from '@/services/settings.service';
+import { useSmsPolling } from '@/hooks/use-sms-polling';
+import { registerBackgroundFetch } from '@/services/sms/sms-background-task';
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -49,6 +51,28 @@ function RootNavigator() {
   const { isLoading: dbLoading, error } = useDatabaseReady();
   const [isCheckingOnboarding, setIsCheckingOnboarding] = useState(true);
   const [initialRoute, setInitialRoute] = useState<string>('(tabs)');
+
+  // Start SMS polling for auto-capture
+  const { isPolling, stats } = useSmsPolling({
+    enabled: !dbLoading && !error,
+    intervalMs: 30000, // Check every 30 seconds
+    onNewTransactions: (count) => {
+      console.log('[RootLayout] New transactions found:', count);
+    },
+  });
+
+  useEffect(() => {
+    console.log('[RootLayout] SMS polling active:', isPolling, 'stats:', stats);
+  }, [isPolling, stats]);
+
+  // Register background fetch for SMS polling when app is closed
+  useEffect(() => {
+    if (!dbLoading && !error) {
+      registerBackgroundFetch().then((registered) => {
+        console.log('[RootLayout] Background fetch registered:', registered);
+      });
+    }
+  }, [dbLoading, error]);
 
   useEffect(() => {
     async function checkOnboarding() {

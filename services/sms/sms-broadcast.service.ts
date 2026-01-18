@@ -8,6 +8,7 @@ import {
   NativeEventEmitter,
   Platform,
   EmitterSubscription,
+  PermissionsAndroid,
 } from 'react-native';
 import { smsListener, type SmsProcessingResult } from './sms-listener.service';
 
@@ -82,6 +83,57 @@ export class SmsBroadcastService {
   }
 
   /**
+   * Check if RECEIVE_SMS permission is granted
+   */
+  async hasReceiveSmsPermission(): Promise<boolean> {
+    if (Platform.OS !== 'android') {
+      return false;
+    }
+    try {
+      return await PermissionsAndroid.check(
+        PermissionsAndroid.PERMISSIONS.RECEIVE_SMS
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Request RECEIVE_SMS permission
+   */
+  async requestReceiveSmsPermission(): Promise<boolean> {
+    if (Platform.OS !== 'android') {
+      return false;
+    }
+    try {
+      const result = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.RECEIVE_SMS,
+        {
+          title: 'SMS Permission Required',
+          message: 'PesaLog needs permission to receive SMS messages to automatically capture your M-Pesa, bank, and card transactions.',
+          buttonPositive: 'Allow',
+          buttonNegative: 'Deny',
+        }
+      );
+      console.log('[SmsBroadcast] Permission result:', result);
+      if (result === PermissionsAndroid.RESULTS.GRANTED) {
+        console.log('[SmsBroadcast] RECEIVE_SMS permission GRANTED');
+        return true;
+      } else if (result === PermissionsAndroid.RESULTS.DENIED) {
+        console.log('[SmsBroadcast] RECEIVE_SMS permission DENIED by user');
+        return false;
+      } else if (result === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
+        console.log('[SmsBroadcast] RECEIVE_SMS permission NEVER_ASK_AGAIN - need to enable in Settings');
+        return false;
+      }
+      return false;
+    } catch (err) {
+      console.error('[SmsBroadcast] Permission request error:', err);
+      return false;
+    }
+  }
+
+  /**
    * Start listening for incoming SMS
    */
   async startListening(): Promise<boolean> {
@@ -96,6 +148,17 @@ export class SmsBroadcastService {
     }
 
     try {
+      // Check and request RECEIVE_SMS permission
+      let hasPermission = await this.hasReceiveSmsPermission();
+      if (!hasPermission) {
+        console.log('[SmsBroadcast] Requesting RECEIVE_SMS permission');
+        hasPermission = await this.requestReceiveSmsPermission();
+        if (!hasPermission) {
+          console.log('[SmsBroadcast] RECEIVE_SMS permission denied');
+          return false;
+        }
+      }
+
       // Process any pending SMS that arrived while app was backgrounded/killed
       await this.processPendingSms();
 
@@ -106,7 +169,7 @@ export class SmsBroadcastService {
       );
 
       this.isListening = true;
-      console.log('[SmsBroadcast] Listener started');
+      console.log('[SmsBroadcast] Listener started with permission');
       return true;
     } catch (error) {
       console.error('[SmsBroadcast] Failed to start listener:', error);

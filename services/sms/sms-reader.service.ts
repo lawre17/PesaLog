@@ -78,10 +78,13 @@ class SmsReaderService {
       return false;
     }
 
-    const granted = await PermissionsAndroid.check(
+    const readGranted = await PermissionsAndroid.check(
       PermissionsAndroid.PERMISSIONS.READ_SMS
     );
-    return granted;
+    const receiveGranted = await PermissionsAndroid.check(
+      PermissionsAndroid.PERMISSIONS.RECEIVE_SMS
+    );
+    return readGranted && receiveGranted;
   }
 
   async requestPermission(): Promise<boolean> {
@@ -90,26 +93,32 @@ class SmsReaderService {
     }
 
     try {
-      const result = await PermissionsAndroid.request(
+      // Request both READ_SMS and RECEIVE_SMS permissions
+      const results = await PermissionsAndroid.requestMultiple([
         PermissionsAndroid.PERMISSIONS.READ_SMS,
-        {
-          title: 'SMS Permission Required',
-          message: 'PesaLog needs access to read your SMS messages to import M-Pesa, bank, and card transactions.',
-          buttonPositive: 'Allow',
-          buttonNegative: 'Deny',
-        }
-      );
+        PermissionsAndroid.PERMISSIONS.RECEIVE_SMS,
+      ]);
 
-      if (result === PermissionsAndroid.RESULTS.GRANTED) {
+      const readResult = results[PermissionsAndroid.PERMISSIONS.READ_SMS];
+      const receiveResult = results[PermissionsAndroid.PERMISSIONS.RECEIVE_SMS];
+
+      if (
+        readResult === PermissionsAndroid.RESULTS.GRANTED &&
+        receiveResult === PermissionsAndroid.RESULTS.GRANTED
+      ) {
         return true;
       }
 
-      if (result === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
+      // Check if any permission was permanently denied
+      if (
+        readResult === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN ||
+        receiveResult === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN
+      ) {
         // Show alert with option to open settings
         return new Promise((resolve) => {
           Alert.alert(
             'Permission Required',
-            'SMS permission was permanently denied. Please enable it in your device Settings to import transactions.',
+            'SMS permissions were permanently denied. Please enable both "Read SMS" and "Receive SMS" in your device Settings to import and auto-capture transactions.',
             [
               { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
               {
